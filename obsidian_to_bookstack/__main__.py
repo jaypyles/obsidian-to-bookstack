@@ -1,7 +1,7 @@
 import logging
 
-from obsidian_to_bookstack.bookstack import Bookstack
-from obsidian_to_bookstack.config import load_toml
+from .bookstack.Bookstack import Bookstack, BookstackClient
+from .config import load_toml
 
 if __name__ == "__main__":
     toml = load_toml()
@@ -18,3 +18,13 @@ if __name__ == "__main__":
             print(book)
             for p in book.pages:
                 print(p)
+
+    print(b.client.shelves)
+    print(b.client.books)
+    print(b.client.pages)
+
+    print(b.books)
+    print(b.shelves)
+    print(b.pages)
+
+    b.sync_local()

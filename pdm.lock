@@ -7,14 +7,24 @@ version = "0.10.2"
 requires_python = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 summary = "Python Library for Tom's Obvious, Minimal Language"
 
+[[package]]
+name = "urllib3"
+version = "2.1.0"
+requires_python = ">=3.8"
+summary = "HTTP library with thread-safe connection pooling, file post, and more."
+
 [metadata]
 lock_version = "4.2"
 cross_platform = true
 groups = ["default"]
-content_hash = "sha256:af90bc5e69467460497e6f7e6b91262e924f5c0dfc86f6af37c4aa79c6a57922"
+content_hash = "sha256:f0a53e814276d3d445150334ac5eb5c176ba021329b116b8b38fca2cfca00b3c"
 
 [metadata.files]
 "toml 0.10.2" = [
     {url = "https://files.pythonhosted.org/packages/44/6f/7120676b6d73228c96e17f1f794d8ab046fc910d781c8d151120c3f1569e/toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"},
     {url = "https://files.pythonhosted.org/packages/be/ba/1f744cdc819428fc6b5084ec34d9b30660f6f9daaf70eead706e3203ec3c/toml-0.10.2.tar.gz", hash = "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"},
+]
+"urllib3 2.1.0" = [
+    {url = "https://files.pythonhosted.org/packages/36/dd/a6b232f449e1bc71802a5b7950dc3675d32c6dbc2a1bd6d71f065551adb6/urllib3-2.1.0.tar.gz", hash = "sha256:df7aa8afb0148fa78488e7899b2c59b5f4ffcfa82e6c54ccb9dd37c1d7b52d54"},
+    {url = "https://files.pythonhosted.org/packages/96/94/c31f58c7a7f470d5665935262ebd7455c7e4c7782eb525658d3dbf4b9403/urllib3-2.1.0-py3-none-any.whl", hash = "sha256:55901e917a5896a349ff771be919f8bd99aff50b79fe58fec595eb37bbc56bb3"},
 ]
