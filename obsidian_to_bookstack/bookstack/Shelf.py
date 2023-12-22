@@ -9,7 +9,12 @@ class Shelf:
         self.name = name
         self.client = client
         self.books = [
-            Book(path=os.path.join(self.path, book), name=book, client=self.client)
+            Book(
+                path=os.path.join(self.path, book),
+                name=book,
+                client=self.client,
+                shelf=self,
+            )
             for book in os.listdir(self.path)
         ]
 
