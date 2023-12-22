@@ -50,7 +50,7 @@ class BookstackClient:
         self.http = urllib3.PoolManager()
         self.shelves = self._get_shelves()
         self.books = self._get_books()
-        self.pages = self._get_from_client(BookstackAPIEndpoints.PAGES)
+        self.pages = self._get_pages()
 
     def _make_request(
         self,
@@ -104,6 +104,32 @@ class BookstackClient:
 
         return books
 
+    def _get_pages(self):
+        """Get remote pages from books"""
+        pages = []
+        for book in self.books:
+
+            class DetailedBook(DetailedBookstackLink):
+                SHELF = f"/api/books/{book['id']}"
+
+            details = json.loads(
+                self._make_request(
+                    RequestType.GET,
+                    DetailedBook.SHELF,
+                ).data.decode()
+            )
+
+            contents = details["contents"]
+
+            for page in contents:
+                page["book_name"] = book["name"]
+                page["shelf_name"] = book["shelf"]
+
+            pages.extend(contents)
+
+        print(pages)
+        return pages
+
 
 class Bookstack:
     """Represents the local Bookstack notes instance"""
@@ -125,23 +151,41 @@ class Bookstack:
         """Sync any remote changes to local store"""
         self._create_missing_shelves()
         self._create_missing_books()
+        self._create_missing_pages()
+
+    def _create_missing_pages(self):
+        """Create any missing pages in the local store, and write content to files which are missing."""
         missing_pages = self._get_missing_set(BookstackItems.PAGE)
+        for page in missing_pages:
+            content = self._download_content(page)
+            path = os.path.join(
+                self.path, page["shelf_name"], page["book_name"], page["name"] + ".md"
+            )
+            if content is not None:
+                with open(path, "wb") as f:
+                    f.write(content)
 
     def _create_missing_books(self):
-        """Create any missing books"""
+        """Create any missing books in the local store"""
         missing_books = self._get_missing_set(BookstackItems.BOOK)
         for book in missing_books:
             os.mkdir(os.path.join(self.path, book["shelf"], book["name"]))
 
     def _create_missing_shelves(self):
-        """Create any missing shelves"""
+        """Create any missing shelves in the local store"""
         missing_shelves = self._get_missing_set(BookstackItems.SHELF)
         for shelf in missing_shelves:
             name = shelf["name"]
             os.mkdir(os.path.join(self.path, name))
 
-    def _download_content(self):
+    def _download_content(self, page):
         """Download content from item in remote instance"""
+
+        class PageMarkdownLink(DetailedBookstackLink):
+            LINK = f"/api/pages/{page['id']}/export/markdown"
+
+        content = self.client._make_request(RequestType.GET, PageMarkdownLink.LINK)
+        return content.data
 
     def _get_missing_set(self, item: BookstackItems):
         """Returns a missing set of items compared to the local store. Returns list of missing items."""
