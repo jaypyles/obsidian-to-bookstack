@@ -18,7 +18,7 @@ You can use a `.env` file in the root of your project for the following secrets:
 
 or you may choose to use whatever secret manager you want, like Doppler, so long as it sets those environment variables.
 
-conf.toml
+Make sure to setup a conf.toml in the root of your project, example:
 
 ```toml
 [wiki]
