@@ -1,14 +1,41 @@
+import os
+
+import click
+from dotenv import load_dotenv
+
 from .bookstack.Bookstack import Bookstack
 from .config import load_toml
 
-if __name__ == "__main__":
-    toml = load_toml()
-    assert toml is not None
+if os.path.exists(".env"):
+    load_dotenv()
 
-    path = toml["wiki"]["path"]
-    excluded = toml["wiki"]["excluded"]["shelves"]
+toml = load_toml()
+assert toml is not None
 
-    b = Bookstack(path, excluded)
+path = toml["wiki"]["path"]
+excluded = toml["wiki"]["excluded"]["shelves"]
 
+b = Bookstack(path, excluded)
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+def remote():
     b.sync_remote()
+
+
+@cli.command()
+def local():
     b.sync_local()
+
+
+def main():
+    cli()
+
+
+if __name__ == "__main__":
+    main()
