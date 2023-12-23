@@ -172,10 +172,7 @@ class Bookstack:
 
     def _refresh(self):
         # refresh objects
-        self.shelves = [
-            Shelf(path=os.path.join(self.path, shelf), name=shelf, client=self.client)
-            for shelf in os.listdir(self.path)
-        ]
+        self.shelves = self._set_shelves()
         self.books = self._set_books()
         self.pages = self._set_pages()
 
@@ -335,7 +332,7 @@ class Bookstack:
         """Assert shelves are folders in DIR"""
         shelves = []
         for shelf in os.listdir(self.path):
-            if os.path.isdir(os.path.join(self.path, shelf)):
+            if os.path.isdir(os.path.join(self.path, shelf)) and shelf != ".obsidian":
                 if not shelf.startswith(".") or shelf not in self.excluded:
                     s = Shelf(
                         path=os.path.join(self.path, shelf),
