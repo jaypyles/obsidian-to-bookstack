@@ -24,6 +24,12 @@ def cli():
 
 
 @cli.command()
+def sync():
+    b.sync_local()
+    b.sync_remote()
+
+
+@cli.command()
 def remote():
     b.sync_remote()
 
