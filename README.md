@@ -56,3 +56,7 @@ Updates any local changes to the remote.
 ### Remote
 
 Updates any remote changes to the local store.
+
+## In Progress
+
+- Update function to fast forward page content to last updated. If remote was updated last, it will sync local, and vice-versa
