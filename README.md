@@ -29,6 +29,8 @@ path = "/home/user/notes/"
 shelves = ["private"]
 ```
 
+Any shelves in `wiki.excluded.shelves` will not be uploaded to Bookstack.
+
 ## Structure
 
 The structure of the Obsidian Vault is pretty specific as it mirrors the Bookstack structure to be as in sync as possible.
