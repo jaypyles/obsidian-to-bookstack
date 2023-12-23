@@ -333,7 +333,7 @@ class Bookstack:
         shelves = []
         for shelf in os.listdir(self.path):
             if os.path.isdir(os.path.join(self.path, shelf)) and shelf != ".obsidian":
-                if not shelf.startswith(".") or shelf not in self.excluded:
+                if not shelf.startswith(".") and shelf not in self.excluded:
                     s = Shelf(
                         path=os.path.join(self.path, shelf),
                         name=shelf,
