@@ -1,6 +1,0 @@
-[wiki]
-url = "https://wiki.jaydenpyles.dev"
-path = "/home/jayden/notes/"
-
-[wiki.excluded]
-shelves = ["private"]
