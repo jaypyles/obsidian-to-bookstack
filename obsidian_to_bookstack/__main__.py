@@ -39,6 +39,11 @@ def local():
     b.sync_local()
 
 
+@cli.command()
+def update():
+    b.update_remote()
+
+
 def main():
     cli()
 

@@ -1,9 +1,12 @@
 import json
 import os
+import time
+from datetime import datetime, timedelta
 from enum import Enum
 
 import urllib3
 
+from .Page import Page
 from .Shelf import Shelf
 
 
@@ -59,6 +62,7 @@ class BookstackClient:
         self.books = self._get_books()
         self.book_map = {book["name"]: book["id"] for book in self.books}
         self.pages = self._get_pages()
+        self.page_map = {page["name"]: page for page in self.pages}
 
     def _make_request(
         self,
@@ -85,6 +89,7 @@ class BookstackClient:
         self.books = self._get_books()
         self.book_map = {book["name"]: book for book in self.books}
         self.pages = self._get_pages()
+        self.page_map = {page["name"]: page for page in self.pages}
 
     def _get_temp_book_map(self):
         """Get books from the client, but don't add to the client"""
@@ -191,6 +196,61 @@ class Bookstack:
         self._create_local_missing_shelves()
         self._create_local_missing_books()
         self._create_local_missing_pages()
+
+    def update_remote(self):
+        """Sync page contents to the remote"""
+        print(self.pages)
+
+        for page in self.pages:
+            print(page)
+            file_stat = os.stat(page.path)
+            print(file_stat)
+
+            # Get the file's timestamp in a timezone-naive format
+            updated_at = datetime.fromtimestamp(file_stat.st_mtime)
+            print(updated_at.timestamp())
+
+            client_page = self.client.page_map[os.path.splitext(page.name)[0]]
+            print(client_page)
+
+            # Get the API timestamp and convert it to a timezone-naive format
+            client_updated = datetime.strptime(
+                client_page["updated_at"], "%Y-%m-%dT%H:%M:%S.%fZ"
+            )
+            tz = time.tzname[0]
+
+            print(updated_at)
+            print(client_updated)
+
+            if updated_at > client_updated and (
+                updated_at - client_updated
+            ) > timedelta(
+                seconds=5  # TODO: Surely there's a better way to tell the difference without downloading content
+            ):
+                print("updating")
+                self._update_content(page, client_page)
+
+    def _update_content(self, page, client_page):
+        """Update the content of a page in the remote"""
+        client_book = self.client.book_map[page.book.name]
+
+        content = None
+
+        with open(page.path, "r") as f:
+            content = f.read()
+
+        if content:
+            data = {
+                "book_id": client_book,
+                "name": os.path.splitext(page.name)[0],
+                "markdown": content,
+            }
+
+            class PageLink(DetailedBookstackLink):
+                LINK = f"/api/pages/{client_page['id']}"
+
+            resp = self.client._make_request(RequestType.PUT, PageLink.LINK, json=data)
+            print(resp.data)
 
     def _update_shelf_books(self):
         """Update's a shelf's books array"""
