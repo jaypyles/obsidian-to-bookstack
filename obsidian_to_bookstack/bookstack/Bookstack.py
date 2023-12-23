@@ -215,7 +215,6 @@ class Bookstack:
 
             data = {
                 "name": client_shelf["name"],
-                "description": "Testing the description",
                 "books": books,
             }
 
