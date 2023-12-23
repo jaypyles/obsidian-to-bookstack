@@ -11,7 +11,9 @@ Run with `pipx install .` inside the project to install to your machine.
 You can use a `.env` file in the root of your project for the following secrets:
 
 `BOOKSTACK_BASE_URL="https://demo.bookstack.com"`
+
 `BOOKSTACK_TOKEN_ID=<your_bookstack_api_token_id>`
+
 `BOOKSTACK_TOKEN_SECRET=<your_bookstack_api_token_secret>`
 
 or you may choose to use whatever secret manager you want, like Doppler, so long as it sets those environment variables.
