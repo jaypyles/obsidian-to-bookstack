@@ -12,19 +12,20 @@ if __name__ == "__main__":
 
     b = Bookstack(path)
 
-    for s in b.shelves:
-        print(s)
-        for book in s.books:
-            print(book)
-            for p in book.pages:
-                print(p)
+    # for s in b.shelves:
+    #     print(s)
+    #     for book in s.books:
+    #         print(book)
+    #         for p in book.pages:
+    #             print(p)
 
-    print(b.client.shelves)
-    print(b.client.books)
-    print(b.client.pages)
+    # print(b.client.shelves)
+    # print(b.client.books)
+    # print(b.client.pages)
 
-    print(b.books)
-    print(b.shelves)
-    print(b.pages)
+    # print(b.books)
+    # print(b.shelves)
+    # print(b.pages)
 
-    b.sync_local()
+    # b.sync_local()
+    b.sync_remote()
