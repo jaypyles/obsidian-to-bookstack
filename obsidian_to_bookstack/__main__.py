@@ -1,6 +1,4 @@
-import logging
-
-from .bookstack.Bookstack import Bookstack, BookstackClient
+from .bookstack.Bookstack import Bookstack
 from .config import load_toml
 
 if __name__ == "__main__":
@@ -8,24 +6,9 @@ if __name__ == "__main__":
     assert toml is not None
 
     path = toml["wiki"]["path"]
-    print(path)
+    excluded = toml["wiki"]["excluded"]["shelves"]
 
-    b = Bookstack(path)
+    b = Bookstack(path, excluded)
 
-    # for s in b.shelves:
-    #     print(s)
-    #     for book in s.books:
-    #         print(book)
-    #         for p in book.pages:
-    #             print(p)
-
-    # print(b.client.shelves)
-    # print(b.client.books)
-    # print(b.client.pages)
-
-    # print(b.books)
-    # print(b.shelves)
-    # print(b.pages)
-
-    # b.sync_local()
     b.sync_remote()
+    b.sync_local()

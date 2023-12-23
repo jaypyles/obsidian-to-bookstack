@@ -58,7 +58,6 @@ class BookstackClient:
         self.shelf_map = {shelf["name"]: shelf for shelf in self.shelves}
         self.books = self._get_books()
         self.book_map = {book["name"]: book["id"] for book in self.books}
-
         self.pages = self._get_pages()
 
     def _make_request(
@@ -84,7 +83,7 @@ class BookstackClient:
         self.shelves = self._get_shelves()
         self.shelf_map = {shelf["name"]: shelf for shelf in self.shelves}
         self.books = self._get_books()
-        self.book_map = {book["name"] + book["shelf"]: book for book in self.books}
+        self.book_map = {book["name"]: book for book in self.books}
         self.pages = self._get_pages()
 
     def _get_temp_book_map(self):
@@ -162,12 +161,14 @@ class BookstackClient:
 class Bookstack:
     """Represents the local Bookstack notes instance"""
 
-    def __init__(self, path) -> None:
+    def __init__(self, path, excluded) -> None:
         self.client = BookstackClient()
         self.path = path
+        self.excluded = excluded
         self.shelves = [
             Shelf(path=os.path.join(self.path, shelf), name=shelf, client=self.client)
             for shelf in os.listdir(self.path)
+            if not shelf.startswith(".") or shelf not in self.excluded
         ]
         self.books = self._set_books()
         self.pages = self._set_pages()
@@ -189,6 +190,8 @@ class Bookstack:
         self.client._refresh()  # refresh to update book and page ids
         self._refresh()
         self._update_shelf_books()
+        self.client._refresh()  # refresh to update book and page ids
+        self._create_remote_missing_pages()
 
     def sync_local(self):
         """Sync any remote changes to local store"""
@@ -224,7 +227,6 @@ class Bookstack:
             }
 
             self.client.headers["Content-Type"] = "application/json"
-            print(self.client.headers)
 
             class ShelfUpdate(DetailedBookstackLink):
                 LINK = f"/api/shelves/{client_shelf['id']}"
@@ -260,6 +262,23 @@ class Bookstack:
     def _create_remote_missing_pages(self):
         """Create any pages in the remote which are missing"""
         missing_pages = self._get_missing_set(BookstackItems.PAGE, SyncType.REMOTE)
+        for page in missing_pages:
+            book_id = self.client.book_map[page.book.name]["id"]
+            content = ""
+
+            with open(page.path, "r") as f:
+                content = str(f.read())
+
+            data = {
+                "book_id": book_id,
+                "name": os.path.splitext(page.name)[0],
+                "markdown": content,
+            }
+
+            self.client.headers["Content-Type"] = "application/json"
+            self.client._make_request(
+                RequestType.POST, BookstackAPIEndpoints.PAGES, json=data
+            )
 
     def _create_local_missing_pages(self):
         """Create any missing pages in the local store, and write content to files which are missing."""
@@ -302,7 +321,7 @@ class Bookstack:
         items = getattr(self, attr)
         client_items = getattr(self.client, attr)
 
-        item_names = set(item.name for item in items)
+        item_names = set(os.path.splitext(item.name)[0] for item in items)
         client_item_names = set(shelf["name"] for shelf in client_items)
 
         if sync_type == SyncType.LOCAL:
@@ -310,7 +329,9 @@ class Bookstack:
             missing_items = [ci for ci in client_items if ci["name"] in missing]
         else:
             missing = item_names - client_item_names
-            missing_items = [ci for ci in items if ci.name in missing]
+            missing_items = [
+                ci for ci in items if os.path.splitext(ci.name)[0] in missing
+            ]
 
         return missing_items
 
