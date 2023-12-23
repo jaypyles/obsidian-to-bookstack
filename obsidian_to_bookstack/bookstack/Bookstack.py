@@ -66,6 +66,7 @@ class BookstackClient:
         request_type: RequestType,
         endpoint: BookstackAPIEndpoints | DetailedBookstackLink,
         body=None,
+        json=None,
     ) -> urllib3.BaseHTTPResponse:
         """Make a HTTP request to a Bookstack API Endpoint"""
 
@@ -73,7 +74,7 @@ class BookstackClient:
 
         request_url = self.base_url + endpoint.value
         resp = self.http.request(
-            request_type.value, request_url, headers=self.headers, body=body
+            request_type.value, request_url, headers=self.headers, body=body, json=json
         )
         return resp
 
@@ -215,27 +216,20 @@ class Bookstack:
 
             client_shelf = self.client.shelf_map[shelf]
             books = client_shelf["books"] + new_books
-            print(books)
-            books_json = json.dumps(books)
-            encoded_books = books_json.encode("utf-8")
 
-            encoded_data, content_type = urllib3.encode_multipart_formdata(
-                {"books": ("books.json", encoded_books)}
-            )
-            self.client.headers["Content-Type"] = content_type
+            data = {
+                "name": client_shelf["name"],
+                "description": "Testing the description",
+                "books": books,
+            }
 
-            # Prepare the POST request with _method parameter set to PUT
-            body = {"_method": "PUT", "payload": encoded_data}
+            self.client.headers["Content-Type"] = "application/json"
+            print(self.client.headers)
 
             class ShelfUpdate(DetailedBookstackLink):
                 LINK = f"/api/shelves/{client_shelf['id']}"
 
-            # Send the POST request with _method parameter set to PUT
-            self.client._make_request(
-                RequestType.POST,
-                ShelfUpdate.LINK,
-                body=body,
-            )
+            self.client._make_request(RequestType.PUT, ShelfUpdate.LINK, json=data)
 
     def _create_remote_missing_shelves(self):
         """Create any shelves in the remote which are missing"""
@@ -265,6 +259,7 @@ class Bookstack:
 
     def _create_remote_missing_pages(self):
         """Create any pages in the remote which are missing"""
+        missing_pages = self._get_missing_set(BookstackItems.PAGE, SyncType.REMOTE)
 
     def _create_local_missing_pages(self):
         """Create any missing pages in the local store, and write content to files which are missing."""
