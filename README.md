@@ -2,7 +2,7 @@
 
 Run with `pipx install .` inside the project to install to your machine.
 
-## Config
+# Config
 
 conf.toml
 
@@ -14,3 +14,13 @@ path = "/home/user/notes/"
 [wiki.excluded]
 shelves = ["private"]
 ```
+
+## Commmands
+
+### Local
+
+Updates any local changes to the remote.
+
+### Remote
+
+Updates any remote changes to the local store.
