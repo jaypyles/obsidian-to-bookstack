@@ -17,6 +17,7 @@ class Book:
                 book=self,
             )
             for page in os.listdir(self.path)
+            if os.path.splitext(page)[1] == ".md"
         ]
 
     def __str__(self) -> str:

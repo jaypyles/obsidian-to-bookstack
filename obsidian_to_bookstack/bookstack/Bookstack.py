@@ -165,11 +165,7 @@ class Bookstack:
         self.client = BookstackClient()
         self.path = path
         self.excluded = excluded
-        self.shelves = [
-            Shelf(path=os.path.join(self.path, shelf), name=shelf, client=self.client)
-            for shelf in os.listdir(self.path)
-            if not shelf.startswith(".") or shelf not in self.excluded
-        ]
+        self.shelves = self._set_shelves()
         self.books = self._set_books()
         self.pages = self._set_pages()
         self.missing_books = set()
@@ -334,6 +330,21 @@ class Bookstack:
             ]
 
         return missing_items
+
+    def _set_shelves(self):
+        """Assert shelves are folders in DIR"""
+        shelves = []
+        for shelf in os.listdir(self.path):
+            if os.path.isdir(os.path.join(self.path, shelf)):
+                if not shelf.startswith(".") or shelf not in self.excluded:
+                    s = Shelf(
+                        path=os.path.join(self.path, shelf),
+                        name=shelf,
+                        client=self.client,
+                    )
+                    shelves.append(s)
+
+        return shelves
 
     def _set_books(self):
         books = []
