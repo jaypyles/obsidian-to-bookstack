@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 import urllib3
@@ -199,38 +199,25 @@ class Bookstack:
 
     def update_remote(self):
         """Sync page contents to the remote"""
-        print(self.pages)
-
         for page in self.pages:
-            print(page)
             file_stat = os.stat(page.path)
-            print(file_stat)
 
-            # Get the file's timestamp in a timezone-naive format
-            updated_at = datetime.fromtimestamp(file_stat.st_mtime)
-            print(updated_at.timestamp())
+            updated_at = datetime.utcfromtimestamp(file_stat.st_mtime)
 
             client_page = self.client.page_map[os.path.splitext(page.name)[0]]
-            print(client_page)
 
-            # Get the API timestamp and convert it to a timezone-naive format
             client_updated = datetime.strptime(
                 client_page["updated_at"], "%Y-%m-%dT%H:%M:%S.%fZ"
             )
-            tz = time.tzname[0]
-
-            print(updated_at)
-            print(client_updated)
 
             if updated_at > client_updated and (
                 updated_at - client_updated
             ) > timedelta(
                 seconds=5  # TODO: Surely there's a better way to tell the difference without downloading content
             ):
-                print("updating")
-                self._update_content(page, client_page)
+                self._update_local_content(page, client_page)
 
-    def _update_content(self, page, client_page):
+    def _update_local_content(self, page, client_page):
         """Update the content of a page in the remote"""
         client_book = self.client.book_map[page.book.name]
 
