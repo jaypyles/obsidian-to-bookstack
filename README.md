@@ -47,15 +47,20 @@ I may in the future add extra support for pages with no books, along with more n
 
 ### Sync
 
-Updates both local and remote changes.
+Calls `local` and `remote`
 
 ### Local
 
-Updates any local changes to the remote.
+Pulls down any missing local files
 
 ### Remote
 
-Updates any remote changes to the local store.
+Pushes up any missing files in the remote
+
+### Update
+
+Requires either the `--remote` or the `--local` flag.
+If `--remote` is specified, any files which have been updated locally will be changed in the remote and vice-versa for `--local`.
 
 ## In Progress
 
