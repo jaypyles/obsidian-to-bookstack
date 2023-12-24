@@ -197,7 +197,7 @@ class Bookstack:
         self._create_local_missing_books()
         self._create_local_missing_pages()
 
-    def update_remote(self):
+    def update_remote(self, remote: bool, local: bool):
         """Sync page contents to the remote"""
         for page in self.pages:
             file_stat = os.stat(page.path)
@@ -210,12 +210,40 @@ class Bookstack:
                 client_page["updated_at"], "%Y-%m-%dT%H:%M:%S.%fZ"
             )
 
-            if updated_at > client_updated and (
-                updated_at - client_updated
-            ) > timedelta(
-                seconds=5  # TODO: Surely there's a better way to tell the difference without downloading content
-            ):
-                self._update_local_content(page, client_page)
+            if remote:
+                if updated_at > client_updated and (
+                    updated_at - client_updated
+                ) > timedelta(
+                    seconds=5  # TODO: Surely there's a better way to tell the difference without downloading content
+                ):
+                    self._update_local_content(page, client_page)
+            elif local:
+                if updated_at < client_updated and (
+                    client_updated - updated_at
+                ) > timedelta(seconds=5):
+                    content = self._download_content(client_page)
+                    content = self._remove_full_header(content)
+                    with open(page.path, "wb") as f:
+                        f.write(content)
+
+    def _remove_full_header(self, content):
+        content = self._remove_header(content, "#")
+        content = self._remove_header(content, "\n\n", inc=True)
+        return content
+
+    def _remove_header(self, content, end, inc=False):  # oof
+        first_index = content.find(b"#")
+        end = f"{end}".encode()
+        second_index = content.find(end, first_index + 1)
+
+        if inc:
+            second_index += 2
+
+        if first_index != -1 and second_index != -1:
+            new_content = content[:first_index] + content[second_index:]
+            return new_content
+        else:
+            return content
 
     def _update_local_content(self, page, client_page):
         """Update the content of a page in the remote"""
@@ -224,7 +252,7 @@ class Bookstack:
         content = None
 
         with open(page.path, "r") as f:
-            content = f.read()
+            content = "".join(f.readlines()[0:])  # remove header
 
         if content:
             data = {
@@ -236,8 +264,7 @@ class Bookstack:
             class PageLink(DetailedBookstackLink):
                 LINK = f"/api/pages/{client_page['id']}"
 
-            resp = self.client._make_request(RequestType.PUT, PageLink.LINK, json=data)
-            print(resp.data)
+            self.client._make_request(RequestType.PUT, PageLink.LINK, json=data)
 
     def _update_shelf_books(self):
         """Update's a shelf's books array"""
