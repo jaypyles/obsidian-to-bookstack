@@ -1,9 +1,12 @@
 import json
 import os
+import time
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 import urllib3
 
+from .Page import Page
 from .Shelf import Shelf
 
 
@@ -59,6 +62,7 @@ class BookstackClient:
         self.books = self._get_books()
         self.book_map = {book["name"]: book["id"] for book in self.books}
         self.pages = self._get_pages()
+        self.page_map = {page["name"]: page for page in self.pages}
 
     def _make_request(
         self,
@@ -85,6 +89,7 @@ class BookstackClient:
         self.books = self._get_books()
         self.book_map = {book["name"]: book for book in self.books}
         self.pages = self._get_pages()
+        self.page_map = {page["name"]: page for page in self.pages}
 
     def _get_temp_book_map(self):
         """Get books from the client, but don't add to the client"""
@@ -191,6 +196,75 @@ class Bookstack:
         self._create_local_missing_shelves()
         self._create_local_missing_books()
         self._create_local_missing_pages()
+
+    def update_remote(self, remote: bool, local: bool):
+        """Sync page contents to the remote"""
+        for page in self.pages:
+            file_stat = os.stat(page.path)
+
+            updated_at = datetime.utcfromtimestamp(file_stat.st_mtime)
+
+            client_page = self.client.page_map[os.path.splitext(page.name)[0]]
+
+            client_updated = datetime.strptime(
+                client_page["updated_at"], "%Y-%m-%dT%H:%M:%S.%fZ"
+            )
+
+            if remote:
+                if updated_at > client_updated and (
+                    updated_at - client_updated
+                ) > timedelta(
+                    seconds=5  # TODO: Surely there's a better way to tell the difference without downloading content
+                ):
+                    self._update_local_content(page, client_page)
+            elif local:
+                if updated_at < client_updated and (
+                    client_updated - updated_at
+                ) > timedelta(seconds=5):
+                    content = self._download_content(client_page)
+                    content = self._remove_full_header(content)
+                    with open(page.path, "wb") as f:
+                        f.write(content)
+
+    def _remove_full_header(self, content):
+        content = self._remove_header(content, "#")
+        content = self._remove_header(content, "\n\n", inc=True)
+        return content
+
+    def _remove_header(self, content, end, inc=False):  # oof
+        first_index = content.find(b"#")
+        end = f"{end}".encode()
+        second_index = content.find(end, first_index + 1)
+
+        if inc:
+            second_index += 2
+
+        if first_index != -1 and second_index != -1:
+            new_content = content[:first_index] + content[second_index:]
+            return new_content
+        else:
+            return content
+
+    def _update_local_content(self, page, client_page):
+        """Update the content of a page in the remote"""
+        client_book = self.client.book_map[page.book.name]
+
+        content = None
+
+        with open(page.path, "r") as f:
+            content = "".join(f.readlines()[0:])  # remove header
+
+        if content:
+            data = {
+                "book_id": client_book,
+                "name": os.path.splitext(page.name)[0],
+                "markdown": content,
+            }
+
+            class PageLink(DetailedBookstackLink):
+                LINK = f"/api/pages/{client_page['id']}"
+
+            self.client._make_request(RequestType.PUT, PageLink.LINK, json=data)
 
     def _update_shelf_books(self):
         """Update's a shelf's books array"""

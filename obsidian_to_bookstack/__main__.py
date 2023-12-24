@@ -39,6 +39,30 @@ def local():
     b.sync_local()
 
 
+@cli.command()
+@click.option(
+    "-r",
+    "--remote",
+    flag_value="remote",
+    is_flag=True,
+    help="Update remote pages from local copies",
+)
+@click.option(
+    "-l",
+    "--local",
+    flag_value="local",
+    is_flag=True,
+    help="Update local pages from from copies",
+)
+def update(remote, local):
+    if remote:
+        b.update_remote(remote=True, local=False)
+    elif local:
+        b.update_remote(remote=False, local=True)
+    else:
+        print("Must specify remote or local!")
+
+
 def main():
     cli()
 
