@@ -275,7 +275,7 @@ class Bookstack:
             if book.shelf.name not in s:
                 s[book.shelf.name] = [book]
             else:
-                s[book.shelf.name] += book
+                s[book.shelf.name].append(book)
 
         for shelf in s:
             new_books = []
@@ -321,7 +321,8 @@ class Bookstack:
                 RequestType.POST, BookstackAPIEndpoints.BOOKS, body=encoded_data
             )
 
-        self.missing_books = missing_books  # save to update shelf location
+        if missing_books:
+            self.missing_books = missing_books  # save to update shelf location
 
     def _create_remote_missing_pages(self):
         """Create any pages in the remote which are missing"""
