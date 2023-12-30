@@ -1,1 +1,1 @@
-from .Bookstack import Bookstack
+from .bookstack import Bookstack

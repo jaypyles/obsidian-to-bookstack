@@ -3,7 +3,7 @@ import os
 import click
 from dotenv import load_dotenv
 
-from .bookstack.Bookstack import Bookstack
+from .bookstack.bookstack import Bookstack
 from .config import load_toml
 
 if os.path.exists(".env"):
@@ -63,9 +63,15 @@ def update(remote, local):
         print("Must specify remote or local!")
 
 
+@cli.command()
+def delete():
+    ...
+
+
 def main():
     cli()
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    ...
