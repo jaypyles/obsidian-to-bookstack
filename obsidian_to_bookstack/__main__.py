@@ -64,8 +64,25 @@ def update(remote, local):
 
 
 @cli.command()
-def delete():
-    ...
+@click.argument("path", required=True)
+@click.option("--shelf", is_flag=True, help="Delete a shelf")
+@click.option("--book", is_flag=True, help="Delete a book")
+@click.option("--page", is_flag=True, help="Delete a page")
+def delete(path, shelf, book, page):
+    if not any([shelf, book, page]):
+        raise click.UsageError(
+            "Please provide at least one of --shelf, --book, or --page"
+        )
+
+    if shelf:
+        print(f"Shelfing")
+        b.delete("shelf", path)
+    elif book:
+        # Delete book logic
+        click.echo(f"Deleting book at {path}")
+    elif page:
+        # Delete page logic
+        click.echo(f"Deleting page at {path}")
 
 
 def main():
@@ -73,5 +90,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    ...
+    main()

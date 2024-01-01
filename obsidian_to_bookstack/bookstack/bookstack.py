@@ -1,11 +1,13 @@
 import json
 import os
+import shutil
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import List
 
 import urllib3
 
+from ..utils import con_hash
 from .artifacts import Book, Page, Shelf
 from .client import Client
 
@@ -14,10 +16,6 @@ class BookstackAPIEndpoints(Enum):
     PAGES = "/api/pages"
     BOOKS = "/api/books"
     SHELVES = "/api/shelves"
-
-    @staticmethod
-    def shelf_details(id_value):
-        return f"/api/shelves/{id_value}"
 
 
 class DetailedBookstackLink(Enum):
@@ -34,6 +32,7 @@ class RequestType(Enum):
     POST = "POST"
     GET = "GET"
     PUT = "PUT"
+    DELETE = "DELETE"
 
 
 class SyncType(Enum):
@@ -93,16 +92,16 @@ class BookstackClient(Client):
 
     def _build_shelf_map(self):
         """Build a map of all client shelves"""
-        return {hash(shelf.name): shelf for shelf in self.shelves}
+        return {con_hash(shelf.name): shelf for shelf in self.shelves}
 
     def _build_book_map(self):
         """Build a map of all client books"""
         book_map = {}
         for book in self.books:
             if book.shelf:
-                book_map[hash(book.name + book.shelf.name)] = book
+                book_map[con_hash(book.name + book.shelf.name)] = book
             else:
-                book_map[hash(book.name)] = book
+                book_map[con_hash(book.name)] = book
 
         return book_map
 
@@ -111,9 +110,9 @@ class BookstackClient(Client):
         page_map = {}
         for page in self.pages:
             if page.book:
-                page_map[hash(page.name + page.book.name)] = page
+                page_map[con_hash(page.name + page.book.name)] = page
             else:
-                page_map[hash(page.name)] = page
+                page_map[con_hash(page.name)] = page
 
         return page_map
 
@@ -128,7 +127,6 @@ class BookstackClient(Client):
         assert resp
 
         data = json.loads(resp.data.decode())
-        print(data)
         return data["data"]
 
     def _get_shelves(self):
@@ -175,13 +173,16 @@ class BookstackClient(Client):
 
         books = [Book(book["name"], details=book["details"]) for book in client_books]
 
-        BOOK_MAP = {hash(book.name + str(book.details["id"])): book for book in books}
+        BOOK_MAP = {
+            con_hash(book.name + str(book.details["id"])): book for book in books
+        }
 
         for shelf in self.shelves:
             for book in shelf.client_books:
-                b = BOOK_MAP.get(hash(book["name"] + book["id"]))
+                b = BOOK_MAP.get(con_hash(book["name"] + str(book["id"])))
                 if b:
                     b.shelf = shelf
+                    shelf.books.append(b)
 
         return books
 
@@ -192,27 +193,32 @@ class BookstackClient(Client):
         for page in client_pages:
 
             class DetailedPage(DetailedBookstackLink):
-                LINK = f"/api/books/{page['id']}"
+                LINK = f"/api/pages/{page['id']}"
 
-            details = json.loads(
-                self._make_request(
-                    RequestType.GET,
-                    DetailedPage.LINK,
-                ).data.decode()
-            )
+            resp = self._make_request(
+                RequestType.GET,
+                DetailedPage.LINK,
+            ).data.decode()
 
-            page["details"] = details
+            if resp:
+                details = json.loads(resp)
+
+                if details:
+                    page["details"] = details
 
         pages = [Page(page["name"], details=page["details"]) for page in client_pages]
 
-        PAGE_MAP = {hash(page.name + str(page.details["id"])): page for page in pages}
+        PAGE_MAP = {
+            con_hash(page.name + str(page.details["id"])): page for page in pages
+        }
 
         for book in self.books:
-            if book.details["contents"]:
-                for page in book.details["contents"][0]["pages"]:
-                    p = PAGE_MAP.get(hash(page["name"] + page["id"]))
+            if book.details.get("contents"):
+                for page in book.details["contents"]:
+                    p = PAGE_MAP.get(con_hash(page["name"] + str(page["id"])))
                     if p:
                         p.book = book
+                        book.pages.append(p)
 
         return pages
 
@@ -235,9 +241,46 @@ class Bookstack(Client):
         self.books = self._set_books()
         self.pages = self._set_pages()
 
-    def delete(self):
+    def delete(self, arg, item):
         """Delete item from both local Obsidian Vault and remote Bookstack instance"""
-        ...
+        # args -> --page, --book, --shelf
+        # item is path
+        print(f"ARG: {arg}")
+
+        if arg == "shelf":
+            # delete local
+
+            path = os.path.join(self.path, item)
+            print(f"Path: {path}")
+            # shutil.rmtree(path)
+            # delete remote
+            shelf = Shelf(item)
+
+            client_shelf = self._retrieve_from_client_map(shelf)
+            print(f"Client Shelf: {client_shelf}")
+
+            class ShelfLink(DetailedBookstackLink):
+                LINK = f"/api/shelves/{client_shelf.details['id']}"
+
+            self._delete_from_bookstack(ShelfLink.LINK)
+            print(f"Client shelf books: {client_shelf.books}")
+
+            for book in client_shelf.books:
+
+                class BookLink(DetailedBookstackLink):
+                    LINK = f"/api/books/{book.details['id']}"
+
+                self._delete_from_bookstack(BookLink.LINK)
+
+        if arg == "book":
+            ...
+
+        if arg == "page":
+            ...
+
+    def _delete_from_bookstack(self, link: DetailedBookstackLink):
+        resp = self.client._make_request(RequestType.DELETE, link)
+        print(f"Resp: {resp}")
 
     def sync_remote(self):
         """Sync local changes to the remote."""
@@ -263,23 +306,21 @@ class Bookstack(Client):
             if obj.book:
                 book = obj.book.name
 
-            print(f"Page: {name}, Book: {obj.book.name}")
-
             return (
-                self.client.page_map[hash(name + book)]
+                self.client.page_map[con_hash(name + book)]
                 if book
-                else self.client.page_map[hash(name)]
+                else self.client.page_map[con_hash(name)]
             )
 
         if isinstance(obj, Book):
             return (
-                self.client.book_map[hash(obj.name + obj.shelf.name)]
+                self.client.book_map[con_hash(obj.name + obj.shelf.name)]
                 if obj.shelf
-                else self.client.book_map[hash(obj.name)]
+                else self.client.book_map[con_hash(obj.name)]
             )
 
         if isinstance(obj, Shelf):
-            return self.client.shelf_map[hash(obj.name)]
+            return self.client.shelf_map[con_hash(obj.name)]
 
     def update_remote(self, remote: bool, local: bool):
         """Sync page contents to the remote"""
@@ -354,34 +395,37 @@ class Bookstack(Client):
         """Update's a shelf's books array"""
         new_books = []
         s = {}
-
         map = self.client._get_temp_book_map()
 
         for book in self.missing_books:
-            if book.shelf.name not in s:
-                s[book.shelf.name] = [book]
+            if book.shelf not in s:
+                s[book.shelf] = [book]
             else:
-                s[book.shelf.name].append(book)
+                s[book.shelf].append(book)
 
         for shelf in s:
             new_books = []
             for book in s[shelf]:
                 new_books.append(map[book.name])
 
-            client_shelf = self.client.shelf_map[shelf]
-            books = client_shelf.details["books"] + new_books
+            client_shelf = self._retrieve_from_client_map(shelf)
 
-            data = {
-                "name": client_shelf.details["name"],
-                "books": books,
-            }
+            if client_shelf:
+                books = new_books
+                if client_shelf.details.get("books"):
+                    books = client_shelf.details["books"] + new_books
 
-            self.client.headers["Content-Type"] = "application/json"
+                data = {
+                    "name": client_shelf.details["name"],
+                    "books": books,
+                }
 
-            class ShelfUpdate(DetailedBookstackLink):
-                LINK = f"/api/shelves/{client_shelf.details['id']}"
+                self.client.headers["Content-Type"] = "application/json"
 
-            self.client._make_request(RequestType.PUT, ShelfUpdate.LINK, json=data)
+                class ShelfUpdate(DetailedBookstackLink):
+                    LINK = f"/api/shelves/{client_shelf.details['id']}"
+
+                self.client._make_request(RequestType.PUT, ShelfUpdate.LINK, json=data)
 
     def _create_remote_missing_shelves(self):
         """Create any shelves in the remote which are missing"""
@@ -414,8 +458,9 @@ class Bookstack(Client):
         """Create any pages in the remote which are missing"""
         missing_pages = self._get_missing_set(BookstackItems.PAGE, SyncType.REMOTE)
         for page in missing_pages:
-            client_page = self._retrieve_from_client_map(page)
-            book_id = client_page.book.details["id"]
+            client_book = self._retrieve_from_client_map(page.book)
+            book_id = client_book.details["id"]
+
             content = ""
 
             with open(page.path, "r") as f:
@@ -438,30 +483,33 @@ class Bookstack(Client):
         for page in missing_pages:
             content = self._download_content(page)
             path = os.path.join(
-                self.path, page["shelf_name"], page["book_name"], page["name"] + ".md"
+                self.path,
+                page.book.shelf.name,
+                page.book.name,
+                page.name + ".md",
             )
             if content is not None:
                 with open(path, "wb") as f:
+                    content = self._remove_header(content, "\n\n", inc=True)
                     f.write(content)
 
     def _create_local_missing_books(self):
         """Create any missing books in the local store"""
         missing_books = self._get_missing_set(BookstackItems.BOOK, SyncType.LOCAL)
         for book in missing_books:
-            os.mkdir(os.path.join(self.path, book["shelf"], book["name"]))
+            os.mkdir(os.path.join(self.path, book.shelf.name, book.name))
 
     def _create_local_missing_shelves(self):
         """Create any missing shelves in the local store"""
         missing_shelves = self._get_missing_set(BookstackItems.SHELF, SyncType.LOCAL)
         for shelf in missing_shelves:
-            name = shelf["name"]
-            os.mkdir(os.path.join(self.path, name))
+            os.mkdir(os.path.join(self.path, shelf.name))
 
     def _download_content(self, page):
         """Download content from item in remote instance"""
 
         class PageMarkdownLink(DetailedBookstackLink):
-            LINK = f"/api/pages/{page['id']}/export/markdown"
+            LINK = f"/api/pages/{page.details['id']}/export/markdown"
 
         content = self.client._make_request(RequestType.GET, PageMarkdownLink.LINK)
         return content.data
@@ -469,16 +517,12 @@ class Bookstack(Client):
     def _get_missing_set(self, item: BookstackItems, sync_type: SyncType):
         """Returns a missing set of items, can either compare to local or remote. Returns list of missing items."""
         attr = BOOKSTACK_ATTR_MAP[item]
-        print(f"Self PAges: {self.pages}")
 
         items = getattr(self, attr)
         client_items = getattr(self.client, attr)
 
         item_names = set(os.path.splitext(item.name)[0] for item in items)
         client_item_names = set(shelf.name for shelf in client_items)
-
-        print(f"ITEM NAMES: {item_names}")
-        print(f"CLIENT ITEM NAMES: {client_item_names}")
 
         if sync_type == SyncType.LOCAL:
             missing = client_item_names - item_names
@@ -518,9 +562,7 @@ class Bookstack(Client):
     def _set_pages(self):
         pages = []
         for book in self.books:
-            print(f"Book: {book}")
             for page in book.pages:
-                print(f"Page: {page}")
                 pages.append(page)
 
         return pages
