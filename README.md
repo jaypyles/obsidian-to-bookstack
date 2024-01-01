@@ -73,7 +73,7 @@ Must be called in a path like structure. Ex:
     - Page.md
 ```
 
-The command would be called as `obsidian_to_bookstack Shelf/Book/Page --page` to delete a page.
+The command would be called as `obsidian_to_bookstack delete Shelf/Book/Page --page` to delete a page.
 
 ## In Progress
 
