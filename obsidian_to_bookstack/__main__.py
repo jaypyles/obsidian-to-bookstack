@@ -3,7 +3,7 @@ import os
 import click
 from dotenv import load_dotenv
 
-from .bookstack.bookstack import Bookstack
+from .bookstack.bookstack import Bookstack, BookstackItems
 from .config import load_toml
 
 if os.path.exists(".env"):
@@ -55,12 +55,12 @@ def local():
     help="Update local pages from from copies",
 )
 def update(remote, local):
+    if not any([remote, local]):
+        raise click.UsageError("Please provide at least one of --remote or --local")
     if remote:
         b.update_remote(remote=True, local=False)
     elif local:
         b.update_remote(remote=False, local=True)
-    else:
-        print("Must specify remote or local!")
 
 
 @cli.command()
@@ -75,14 +75,14 @@ def delete(path, shelf, book, page):
         )
 
     if shelf:
-        print(f"Shelfing")
-        b.delete("shelf", path)
+        click.echo(f"Deleting shelf at {path}")
+        b.delete(BookstackItems.SHELF, path)
     elif book:
-        # Delete book logic
         click.echo(f"Deleting book at {path}")
+        b.delete(BookstackItems.BOOK, path)
     elif page:
-        # Delete page logic
         click.echo(f"Deleting page at {path}")
+        b.delete(BookstackItems.PAGE, path)
 
 
 def main():

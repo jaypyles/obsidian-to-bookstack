@@ -36,9 +36,9 @@ Any shelves in `wiki.excluded.shelves` will not be uploaded to Bookstack.
 The structure of the Obsidian Vault is pretty specific as it mirrors the Bookstack structure to be as in sync as possible.
 
 ```
-- shelves
--- books
---- pages.md
+- Shelves
+  - Books
+    - Pages.md
 ```
 
 I may in the future add extra support for pages with no books, along with more nested structure. Bookstack does currently support "chapters" in Books, but this does not support that currently.
@@ -62,6 +62,19 @@ Pushes up any missing files in the remote
 Requires either the `--remote` or the `--local` flag.
 If `--remote` is specified, any files which have been updated locally will be changed in the remote and vice-versa for `--local`.
 
+### Delete
+
+Requires one of `--shelf`, `--book`, `--page`. Will delete Obsidian files and Bookstack files at the same time. Anything nested under a shelf or book will also be deleted.
+Must be called in a path like structure. Ex:
+
+```bash
+- Shelf
+  - Book
+    - Page.md
+```
+
+The command would be called as `obsidian_to_bookstack Shelf/Book/Page --page` to delete a page.
+
 ## In Progress
 
-- Add support for pages with no Books
+- Add "pretty printing" with Rich

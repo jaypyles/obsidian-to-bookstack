@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 .pdm-python
 conf.toml
+Makefile

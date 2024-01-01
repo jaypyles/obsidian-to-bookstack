@@ -241,46 +241,64 @@ class Bookstack(Client):
         self.books = self._set_books()
         self.pages = self._set_pages()
 
-    def delete(self, arg, item):
+    def delete(self, arg: BookstackItems, item: str):
         """Delete item from both local Obsidian Vault and remote Bookstack instance"""
-        # args -> --page, --book, --shelf
-        # item is path
-        print(f"ARG: {arg}")
+        item_sections = item.split(os.path.sep)
+        len_item_sections = len(item_sections)
 
-        if arg == "shelf":
-            # delete local
-
+        if arg == BookstackItems.SHELF:
+            assert len_item_sections == 1
             path = os.path.join(self.path, item)
-            print(f"Path: {path}")
-            # shutil.rmtree(path)
-            # delete remote
+            shutil.rmtree(path)
             shelf = Shelf(item)
 
             client_shelf = self._retrieve_from_client_map(shelf)
-            print(f"Client Shelf: {client_shelf}")
 
             class ShelfLink(DetailedBookstackLink):
                 LINK = f"/api/shelves/{client_shelf.details['id']}"
 
             self._delete_from_bookstack(ShelfLink.LINK)
-            print(f"Client shelf books: {client_shelf.books}")
 
             for book in client_shelf.books:
 
-                class BookLink(DetailedBookstackLink):
+                class ShelfBookLink(DetailedBookstackLink):
                     LINK = f"/api/books/{book.details['id']}"
 
-                self._delete_from_bookstack(BookLink.LINK)
+                self._delete_from_bookstack(ShelfBookLink.LINK)
 
-        if arg == "book":
-            ...
+        if arg == BookstackItems.BOOK:
+            assert len_item_sections == 2
+            path = os.path.join(self.path, item_sections[0], item_sections[1])
+            shutil.rmtree(path)
 
-        if arg == "page":
-            ...
+            shelf = Shelf(item_sections[0])
+            book = Book(item_sections[1], shelf=shelf)
+
+            client_book = self._retrieve_from_client_map(book)
+
+            class BookLink(DetailedBookstackLink):
+                LINK = f"/api/books/{client_book.details['id']}"
+
+            self._delete_from_bookstack(BookLink.LINK)
+
+        if arg == BookstackItems.PAGE:
+            assert len_item_sections == 3
+            path = os.path.join(
+                self.path, item_sections[0], item_sections[1], item_sections[2] + ".md"
+            )
+            os.remove(path)
+            book = Book(item_sections[1])
+            page = Page(item_sections[2], book=book)
+            client_page = self._retrieve_from_client_map(page)
+
+            class PageLink(DetailedBookstackLink):
+                LINK = f"/api/pages/{client_page.details['id']}"
+
+            self._delete_from_bookstack(PageLink.LINK)
 
     def _delete_from_bookstack(self, link: DetailedBookstackLink):
         resp = self.client._make_request(RequestType.DELETE, link)
-        print(f"Resp: {resp}")
+        return resp
 
     def sync_remote(self):
         """Sync local changes to the remote."""
@@ -370,7 +388,7 @@ class Bookstack(Client):
         else:
             return content
 
-    def _update_local_content(self, page, client_page):
+    def _update_local_content(self, page: Page, client_page: Page):
         """Update the content of a page in the remote"""
         client_book = self._retrieve_from_client_map(page.book)
 
@@ -381,13 +399,13 @@ class Bookstack(Client):
 
         if content:
             data = {
-                "book_id": client_book,
+                "book_id": client_book.details["id"],
                 "name": os.path.splitext(page.name)[0],
                 "markdown": content,
             }
 
             class PageLink(DetailedBookstackLink):
-                LINK = f"/api/pages/{client_page['id']}"
+                LINK = f"/api/pages/{client_page.details['id']}"
 
             self.client._make_request(RequestType.PUT, PageLink.LINK, json=data)
 
