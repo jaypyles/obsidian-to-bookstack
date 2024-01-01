@@ -1,7 +1,7 @@
 
 [project]
 name = "obsidian_to_bookstack"
-version = "0.1.1"
+version = "0.2.0"
 description = ""
 authors = [
     {name = "Jayden Pyles", email = "jpylesbusiness@gmail.com"},
