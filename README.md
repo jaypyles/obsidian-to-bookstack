@@ -2,6 +2,13 @@
 
 Download remote files from Bookstack instance, that you may not have, along with sending any changes to the remote.
 
+# 🆕 What's New
+
+- Logging (with verbosity option)
+
+Ex: running obsidian_to_bookstack commands will now show progress and running with `-v` and `--verbose` will show more detail.
+`obsidian_to_bookstack -v sync`
+
 # Installing
 
 Run with `pipx install .` inside the project to install to your machine.

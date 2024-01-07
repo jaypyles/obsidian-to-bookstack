@@ -7,6 +7,7 @@ from typing import List
 
 import urllib3
 
+from ..console import console
 from ..utils import con_hash
 from .artifacts import Book, Page, Shelf
 from .client import Client
@@ -50,7 +51,12 @@ BOOKSTACK_ATTR_MAP = {
 class BookstackClient(Client):
     """Represents the remote Bookstack instance"""
 
-    def __init__(self) -> None:
+    def __init__(self, verbose: bool) -> None:
+        # if verbose is set, will issue logs
+        self.verbose = verbose
+        if self.verbose:
+            console.log("Building remote client...")
+
         self.id = os.getenv("BOOKSTACK_TOKEN_ID")
         self.secret = os.getenv("BOOKSTACK_TOKEN_SECRET")
         self.base_url = os.getenv("BOOKSTACK_BASE_URL")
@@ -151,6 +157,9 @@ class BookstackClient(Client):
             s.client_books = s.details.pop("books")
             shelves.append(s)
 
+            if self.verbose:
+                console.log(f"Found remote shelf: {s}")
+
         return shelves
 
     def _get_books(self):
@@ -183,6 +192,9 @@ class BookstackClient(Client):
                 if b:
                     b.shelf = shelf
                     shelf.books.append(b)
+
+                if self.verbose:
+                    console.log(f"Found remote book: {b}")
 
         return books
 
@@ -220,14 +232,21 @@ class BookstackClient(Client):
                         p.book = book
                         book.pages.append(p)
 
+                    if self.verbose:
+                        console.log(f"Found remote page: {p}")
+
         return pages
 
 
 class Bookstack(Client):
     """Represents the local Bookstack notes instance"""
 
-    def __init__(self, path, excluded) -> None:
-        self.client = BookstackClient()
+    def __init__(self, path, excluded, verbose: bool) -> None:
+        self.verbose = verbose
+        if self.verbose:
+            console.log("Building local client...")
+
+        self.client = BookstackClient(verbose=self.verbose)
         self.path = path
         self.excluded = excluded
         self.shelves = self._set_shelves()
@@ -237,6 +256,9 @@ class Bookstack(Client):
 
     def _refresh(self):
         # refresh objects
+        if self.verbose:
+            console.log("Refreshing local client")
+
         self.shelves = self._set_shelves()
         self.books = self._set_books()
         self.pages = self._set_pages()
@@ -249,6 +271,9 @@ class Bookstack(Client):
         if arg == BookstackItems.SHELF:
             assert len_item_sections == 1
             path = os.path.join(self.path, item)
+            if self.verbose:
+                console.log(f"Deleting path: {path}")
+
             shutil.rmtree(path)
             shelf = Shelf(item)
 
@@ -257,6 +282,9 @@ class Bookstack(Client):
             class ShelfLink(DetailedBookstackLink):
                 LINK = f"/api/shelves/{client_shelf.details['id']}"
 
+            if self.verbose:
+                console.log(f"Deleting shelf in Bookstack: {client_shelf}")
+
             self._delete_from_bookstack(ShelfLink.LINK)
 
             for book in client_shelf.books:
@@ -264,11 +292,17 @@ class Bookstack(Client):
                 class ShelfBookLink(DetailedBookstackLink):
                     LINK = f"/api/books/{book.details['id']}"
 
+                if self.verbose:
+                    console.log(f"Deleting book in Bookstack: {book}")
+
                 self._delete_from_bookstack(ShelfBookLink.LINK)
 
         if arg == BookstackItems.BOOK:
             assert len_item_sections == 2
             path = os.path.join(self.path, item_sections[0], item_sections[1])
+            if self.verbose:
+                console.log(f"Deleting path at: {path}")
+
             shutil.rmtree(path)
 
             shelf = Shelf(item_sections[0])
@@ -279,6 +313,9 @@ class Bookstack(Client):
             class BookLink(DetailedBookstackLink):
                 LINK = f"/api/books/{client_book.details['id']}"
 
+            if self.verbose:
+                console.log(f"Deleting book in Bookstack: {client_book}")
+
             self._delete_from_bookstack(BookLink.LINK)
 
         if arg == BookstackItems.PAGE:
@@ -286,6 +323,9 @@ class Bookstack(Client):
             path = os.path.join(
                 self.path, item_sections[0], item_sections[1], item_sections[2] + ".md"
             )
+            if self.verbose:
+                console.log(f"Deleting path at: {path}")
+
             os.remove(path)
             book = Book(item_sections[1])
             page = Page(item_sections[2], book=book)
@@ -293,6 +333,9 @@ class Bookstack(Client):
 
             class PageLink(DetailedBookstackLink):
                 LINK = f"/api/pages/{client_page.details['id']}"
+
+            if self.verbose:
+                console.log(f"Deleting page in Bookstack: {client_page}")
 
             self._delete_from_bookstack(PageLink.LINK)
 
@@ -342,6 +385,8 @@ class Bookstack(Client):
 
     def update_remote(self, remote: bool, local: bool):
         """Sync page contents to the remote"""
+        updated_pages = []
+
         for page in self.pages:
             file_stat = os.stat(page.path)
 
@@ -359,15 +404,21 @@ class Bookstack(Client):
                 ) > timedelta(
                     seconds=5  # TODO: Surely there's a better way to tell the difference without downloading content
                 ):
+                    updated_pages.append(client_page)
                     self._update_local_content(page, client_page)
             elif local:
                 if updated_at < client_updated and (
                     client_updated - updated_at
                 ) > timedelta(seconds=5):
+                    console.log(f"Updating local page: {page}")
+                    updated_pages.append(page)
                     content = self._download_content(client_page)
                     content = self._remove_full_header(content)
                     with open(page.path, "wb") as f:
                         f.write(content)
+
+        if not updated_pages and self.verbose:
+            console.log("No pages changed to update")
 
     def _remove_full_header(self, content):
         content = self._remove_header(content, "#")
@@ -398,6 +449,9 @@ class Bookstack(Client):
             content = "".join(f.readlines()[0:])  # remove header
 
         if content:
+            if self.verbose:
+                console.log(f"Updating remote page: {page}")
+
             data = {
                 "book_id": client_book.details["id"],
                 "name": os.path.splitext(page.name)[0],
@@ -449,6 +503,9 @@ class Bookstack(Client):
         """Create any shelves in the remote which are missing"""
         missing_shelves = self._get_missing_set(BookstackItems.SHELF, SyncType.REMOTE)
         for shelf in missing_shelves:
+            if self.verbose:
+                console.log(f"Bookstack missing shelf: {shelf}")
+
             encoded_data, content_type = urllib3.encode_multipart_formdata(
                 {"name": shelf.name}
             )
@@ -461,6 +518,9 @@ class Bookstack(Client):
         """Create any books in the remote which are missing"""
         missing_books = self._get_missing_set(BookstackItems.BOOK, SyncType.REMOTE)
         for book in missing_books:
+            if self.verbose:
+                console.log(f"Bookstack missing book: {book}")
+
             encoded_data, content_type = urllib3.encode_multipart_formdata(
                 {"name": book.name}
             )
@@ -476,6 +536,9 @@ class Bookstack(Client):
         """Create any pages in the remote which are missing"""
         missing_pages = self._get_missing_set(BookstackItems.PAGE, SyncType.REMOTE)
         for page in missing_pages:
+            if self.verbose:
+                console.log(f"Bookstack missing page: {page}")
+
             client_book = self._retrieve_from_client_map(page.book)
             book_id = client_book.details["id"]
 
@@ -507,6 +570,9 @@ class Bookstack(Client):
                 page.name + ".md",
             )
             if content is not None:
+                if self.verbose:
+                    console.log(f"Creating a page at: {path}")
+
                 with open(path, "wb") as f:
                     content = self._remove_header(content, "\n\n", inc=True)
                     f.write(content)
@@ -515,13 +581,21 @@ class Bookstack(Client):
         """Create any missing books in the local store"""
         missing_books = self._get_missing_set(BookstackItems.BOOK, SyncType.LOCAL)
         for book in missing_books:
-            os.mkdir(os.path.join(self.path, book.shelf.name, book.name))
+            path = os.path.join(self.path, book.shelf.name, book.name)
+            os.mkdir(path)
+
+            if self.verbose:
+                console.log(f"Creating a book at: {path}")
 
     def _create_local_missing_shelves(self):
         """Create any missing shelves in the local store"""
         missing_shelves = self._get_missing_set(BookstackItems.SHELF, SyncType.LOCAL)
         for shelf in missing_shelves:
-            os.mkdir(os.path.join(self.path, shelf.name))
+            path = os.path.join(self.path, shelf.name)
+            os.mkdir(path)
+
+            if self.verbose:
+                console.log(f"Creating a shelf at: {path}")
 
     def _download_content(self, page):
         """Download content from item in remote instance"""
