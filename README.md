@@ -84,4 +84,4 @@ The command would be called as `obsidian_to_bookstack delete Shelf/Book/Page --p
 
 ## In Progress
 
-- Add "pretty printing" with Rich
+- Chapter suppport
