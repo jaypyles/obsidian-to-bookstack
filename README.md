@@ -83,4 +83,4 @@ The command would be called as `obsidian_to_bookstack delete Shelf/Book/Page --p
 
 ## In Progress
 
-- Chapter suppport
+- Chapter support
