@@ -29,7 +29,6 @@ Make sure to setup a conf.toml in the root of your project, example:
 
 ```toml
 [wiki]
-url = "https://demo.bookstack.com"
 path = "/home/user/notes/"
 
 [wiki.excluded]
