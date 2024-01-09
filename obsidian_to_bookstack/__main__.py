@@ -47,7 +47,7 @@ def sync(ctx):
 @click.pass_context
 def remote(ctx):
     with console.status("Uploading missing files to remote..."):
-        b = ctx.obj.get("bookstack")
+        b: Bookstack = ctx.obj.get("bookstack")
         b.sync_remote()
 
 
@@ -57,6 +57,12 @@ def local(ctx):
     b = ctx.obj.get("bookstack")
     with console.status("Downloading any missing files..."):
         b.sync_local()
+
+        for chapter in b.chapters:
+            print(f"Chapter: {chapter}")
+
+        for page in b.pages:
+            print(f"Page: {page}")
 
 
 @cli.command(help="Update files in Bookstack or Obsidian")

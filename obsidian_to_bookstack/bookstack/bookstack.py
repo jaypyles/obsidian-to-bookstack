@@ -9,7 +9,7 @@ import urllib3
 
 from ..console import console
 from ..utils import con_hash
-from .artifacts import Book, Page, Shelf
+from .artifacts import Book, Chapter, Page, Shelf
 from .client import Client
 
 
@@ -17,6 +17,7 @@ class BookstackAPIEndpoints(Enum):
     PAGES = "/api/pages"
     BOOKS = "/api/books"
     SHELVES = "/api/shelves"
+    CHAPTERS = "/api/chapters"
 
 
 class DetailedBookstackLink(Enum):
@@ -68,6 +69,7 @@ class BookstackClient(Client):
         self.book_map = self._build_book_map()
         self.pages = self._get_pages()
         self.page_map = self._build_page_map()
+        self.chapters = self._get_chapters()
 
     def _make_request(
         self,
@@ -198,9 +200,10 @@ class BookstackClient(Client):
 
         return books
 
-    def _get_pages(self):
+    def _get_pages(self, client_pages=None):
         """Get remote pages from books"""
-        client_pages = self._get_from_client(BookstackAPIEndpoints.PAGES)
+        if not client_pages:
+            client_pages = self._get_from_client(BookstackAPIEndpoints.PAGES)
 
         for page in client_pages:
 
@@ -226,16 +229,75 @@ class BookstackClient(Client):
 
         for book in self.books:
             if book.details.get("contents"):
-                for page in book.details["contents"]:
-                    p = PAGE_MAP.get(con_hash(page["name"] + str(page["id"])))
-                    if p:
-                        p.book = book
-                        book.pages.append(p)
+                for item in book.details["contents"]:
+                    if item["type"] == "page":
+                        print(f"Foop: {item}")
+                        p = PAGE_MAP.get(con_hash(item["name"] + str(item["id"])))
+                        if p:
+                            p.book = book
+                            book.pages.append(p)
 
-                    if self.verbose:
-                        console.log(f"Found remote page: {p}")
+                        if self.verbose:
+                            console.log(f"Found remote page: {p}")
+
+                    if item["type"] == "chapter":
+                        print(f"CHAPTER ITEM: {item}")
+                        for page in item.get("pages"):
+                            p = PAGE_MAP.get(con_hash(item["name"] + str(item["id"])))
+                            print(f"PPPP: {p}")
+                            if p:
+                                p.book = book
+                                book.pages.append(p)
 
         return pages
+
+    def _get_chapters(self):
+        """Get remote chapters from books"""
+        client_chapters = self._get_from_client(BookstackAPIEndpoints.CHAPTERS)
+
+        for chapter in client_chapters:
+
+            class DetailedChapter(DetailedBookstackLink):
+                LINK = f"/api/chapters/{chapter['id']}"
+
+            resp = self._make_request(
+                RequestType.GET,
+                DetailedChapter.LINK,
+            ).data.decode()
+
+            if resp:
+                details = json.loads(resp)
+
+                if details:
+                    chapter["details"] = details
+
+        chapters = [
+            Chapter(chapter["name"], details=chapter["details"])
+            for chapter in client_chapters
+        ]
+
+        CHAPTER_MAP = {
+            con_hash(chapter.name + str(chapter.details["id"])): chapter
+            for chapter in chapters
+        }
+
+        for book in self.books:
+            print(f"Book Details: {book.details}")
+            if book.details.get("contents"):
+                for item in book.details["contents"]:
+                    if item["type"] == "chapter":
+                        c = CHAPTER_MAP.get(con_hash(item["name"] + str(item["id"])))
+                        if c:
+                            c.book = book
+                            book.chapters.append(c)
+
+                            if item.get("pages"):
+                                self.pages.extend(self._get_pages(item["pages"]))
+
+                        if self.verbose:
+                            console.log(f"Found chapter page: {c}")
+
+        return chapters
 
 
 class Bookstack(Client):
@@ -251,6 +313,7 @@ class Bookstack(Client):
         self.excluded = excluded
         self.shelves = self._set_shelves()
         self.books = self._set_books()
+        self.chapters = self._set_chapters()
         self.pages = self._set_pages()
         self.missing_books = set()
 
@@ -532,6 +595,24 @@ class Bookstack(Client):
         if missing_books:
             self.missing_books = missing_books  # save to update shelf location
 
+    def _create_remote_missing_chapters(self):
+        """Create any books in the remote which are missing"""
+        missing_books = self._get_missing_set(BookstackItems.BOOK, SyncType.REMOTE)
+        for book in missing_books:
+            if self.verbose:
+                console.log(f"Bookstack missing book: {book}")
+
+            encoded_data, content_type = urllib3.encode_multipart_formdata(
+                {"name": book.name}
+            )
+            self.client.headers["Content-Type"] = content_type
+            self.client._make_request(
+                RequestType.POST, BookstackAPIEndpoints.BOOKS, body=encoded_data
+            )
+
+        if missing_books:
+            self.missing_books = missing_books  # save to update shelf location
+
     def _create_remote_missing_pages(self):
         """Create any pages in the remote which are missing"""
         missing_pages = self._get_missing_set(BookstackItems.PAGE, SyncType.REMOTE)
@@ -614,7 +695,7 @@ class Bookstack(Client):
         client_items = getattr(self.client, attr)
 
         item_names = set(os.path.splitext(item.name)[0] for item in items)
-        client_item_names = set(shelf.name for shelf in client_items)
+        client_item_names = set(item.name for item in client_items)
 
         if sync_type == SyncType.LOCAL:
             missing = client_item_names - item_names
@@ -651,9 +732,21 @@ class Bookstack(Client):
 
         return books
 
+    def _set_chapters(self):
+        chapters = []
+        for book in self.books:
+            for chapter in book.chapters:
+                chapters.append(chapter)
+
+        return chapters
+
     def _set_pages(self):
         pages = []
         for book in self.books:
+            for chapter in book.chapters:
+                for page in chapter.pages:
+                    pages.append(page)
+
             for page in book.pages:
                 pages.append(page)
 
