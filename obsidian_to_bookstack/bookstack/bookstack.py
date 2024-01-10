@@ -2,7 +2,6 @@ import json
 import os
 import shutil
 from datetime import datetime, timedelta
-from enum import Enum
 from typing import List
 
 import urllib3
@@ -10,59 +9,21 @@ import urllib3
 from ..console import console
 from ..utils import con_hash
 from .artifacts import Book, Chapter, Page, Shelf
-from .client import Client
+from .client import LocalClient, RemoteClient
+from .collectors.local import *
+from .constants import *
 
 
-class BookstackAPIEndpoints(Enum):
-    PAGES = "/api/pages"
-    BOOKS = "/api/books"
-    SHELVES = "/api/shelves"
-    CHAPTERS = "/api/chapters"
-
-
-class DetailedBookstackLink(Enum):
-    ...
-
-
-class BookstackItems(Enum):
-    PAGE = "page"
-    BOOK = "book"
-    SHELF = "shelf"
-
-
-class RequestType(Enum):
-    POST = "POST"
-    GET = "GET"
-    PUT = "PUT"
-    DELETE = "DELETE"
-
-
-class SyncType(Enum):
-    LOCAL = "local"
-    REMOTE = "remote"
-
-
-BOOKSTACK_ATTR_MAP = {
-    BookstackItems.SHELF: "shelves",
-    BookstackItems.BOOK: "books",
-    BookstackItems.PAGE: "pages",
-}
-
-
-class BookstackClient(Client):
+class BookstackClient(RemoteClient):
     """Represents the remote Bookstack instance"""
 
     def __init__(self, verbose: bool) -> None:
         # if verbose is set, will issue logs
+        super().__init__()
         self.verbose = verbose
         if self.verbose:
             console.log("Building remote client...")
 
-        self.id = os.getenv("BOOKSTACK_TOKEN_ID")
-        self.secret = os.getenv("BOOKSTACK_TOKEN_SECRET")
-        self.base_url = os.getenv("BOOKSTACK_BASE_URL")
-        self.headers = {"Authorization": f"Token {self.id}:{self.secret}"}
-        self.http = urllib3.PoolManager()
         self.shelves: List[Shelf] = self._get_shelves()
         self.shelf_map = self._build_shelf_map()
         self.books = self._get_books()
@@ -70,23 +31,6 @@ class BookstackClient(Client):
         self.pages = self._get_pages()
         self.page_map = self._build_page_map()
         self.chapters = self._get_chapters()
-
-    def _make_request(
-        self,
-        request_type: RequestType,
-        endpoint: BookstackAPIEndpoints | DetailedBookstackLink,
-        body=None,
-        json=None,
-    ) -> urllib3.BaseHTTPResponse:
-        """Make a HTTP request to a Bookstack API Endpoint"""
-
-        assert self.base_url
-
-        request_url = self.base_url + endpoint.value
-        resp = self.http.request(
-            request_type.value, request_url, headers=self.headers, body=body, json=json
-        )
-        return resp
 
     def _refresh(self):
         """Simply update the client"""
@@ -231,7 +175,6 @@ class BookstackClient(Client):
             if book.details.get("contents"):
                 for item in book.details["contents"]:
                     if item["type"] == "page":
-                        print(f"Foop: {item}")
                         p = PAGE_MAP.get(con_hash(item["name"] + str(item["id"])))
                         if p:
                             p.book = book
@@ -241,14 +184,14 @@ class BookstackClient(Client):
                             console.log(f"Found remote page: {p}")
 
                     if item["type"] == "chapter":
-                        print(f"CHAPTER ITEM: {item}")
                         for page in item.get("pages"):
-                            p = PAGE_MAP.get(con_hash(item["name"] + str(item["id"])))
-                            print(f"PPPP: {p}")
+                            p = PAGE_MAP.get(con_hash(page["name"] + str(page["id"])))
                             if p:
                                 p.book = book
                                 book.pages.append(p)
 
+        for page in pages:
+            print(f"Page in Pages: {page}")
         return pages
 
     def _get_chapters(self):
@@ -299,8 +242,32 @@ class BookstackClient(Client):
 
         return chapters
 
+    def _retrieve_from_client_map(self, obj: Page | Shelf | Book):
+        """Retrieve the client version of the local object"""
+        if isinstance(obj, Page):
+            name = os.path.splitext(obj.name)[0]
+            book = None
+            if obj.book:
+                book = obj.book.name
 
-class Bookstack(Client):
+            return (
+                self.page_map[con_hash(name + book)]
+                if book
+                else self.page_map[con_hash(name)]
+            )
+
+        if isinstance(obj, Book):
+            return (
+                self.book_map[con_hash(obj.name + obj.shelf.name)]
+                if obj.shelf
+                else self.book_map[con_hash(obj.name)]
+            )
+
+        if isinstance(obj, Shelf):
+            return self.shelf_map[con_hash(obj.name)]
+
+
+class Bookstack(LocalClient):
     """Represents the local Bookstack notes instance"""
 
     def __init__(self, path, excluded, verbose: bool) -> None:
@@ -311,20 +278,33 @@ class Bookstack(Client):
         self.client = BookstackClient(verbose=self.verbose)
         self.path = path
         self.excluded = excluded
-        self.shelves = self._set_shelves()
-        self.books = self._set_books()
-        self.chapters = self._set_chapters()
-        self.pages = self._set_pages()
+        self.__set_collectors()
+        self.__set_artifacts()
         self.missing_books = set()
+
+    def __set_collectors(self):
+        self.shelf_collector = LocalShelfCollector(
+            self.client, self.path, self.excluded, self.verbose
+        )
+        self.book_collector = LocalBookCollector(
+            self.client, self.path, self.excluded, self.verbose
+        )
+        self.page_collector = LocalPageCollector(
+            self.client, self.path, self.excluded, self.verbose
+        )
+
+    def __set_artifacts(self):
+        self.shelves = self.shelf_collector.set_shelves()
+        self.books = self.book_collector.set_books(self.shelves)
+        self.chapters = self._set_chapters()
+        self.pages = self.page_collector.set_pages(self.books)
 
     def _refresh(self):
         # refresh objects
         if self.verbose:
             console.log("Refreshing local client")
 
-        self.shelves = self._set_shelves()
-        self.books = self._set_books()
-        self.pages = self._set_pages()
+        self.__set_artifacts()
 
     def delete(self, arg: BookstackItems, item: str):
         """Delete item from both local Obsidian Vault and remote Bookstack instance"""
@@ -340,7 +320,7 @@ class Bookstack(Client):
             shutil.rmtree(path)
             shelf = Shelf(item)
 
-            client_shelf = self._retrieve_from_client_map(shelf)
+            client_shelf = self.client._retrieve_from_client_map(shelf)
 
             class ShelfLink(DetailedBookstackLink):
                 LINK = f"/api/shelves/{client_shelf.details['id']}"
@@ -371,7 +351,7 @@ class Bookstack(Client):
             shelf = Shelf(item_sections[0])
             book = Book(item_sections[1], shelf=shelf)
 
-            client_book = self._retrieve_from_client_map(book)
+            client_book = self.client._retrieve_from_client_map(book)
 
             class BookLink(DetailedBookstackLink):
                 LINK = f"/api/books/{client_book.details['id']}"
@@ -392,7 +372,7 @@ class Bookstack(Client):
             os.remove(path)
             book = Book(item_sections[1])
             page = Page(item_sections[2], book=book)
-            client_page = self._retrieve_from_client_map(page)
+            client_page = self.client._retrieve_from_client_map(page)
 
             class PageLink(DetailedBookstackLink):
                 LINK = f"/api/pages/{client_page.details['id']}"
@@ -403,48 +383,25 @@ class Bookstack(Client):
             self._delete_from_bookstack(PageLink.LINK)
 
     def _delete_from_bookstack(self, link: DetailedBookstackLink):
+        """Make a DELETE request to a Bookstack API link"""
         resp = self.client._make_request(RequestType.DELETE, link)
         return resp
 
     def sync_remote(self):
         """Sync local changes to the remote."""
-        self._create_remote_missing_shelves()
-        self._create_remote_missing_books()
+        self.shelf_collector.create_remote_missing_shelves()
+        self.missing_books = self.book_collector._create_remote_missing_books()
         self.client._refresh()  # refresh to update book and page ids
         self._refresh()
-        self._update_shelf_books()
+        self.book_collector.update_shelf_books(self.missing_books)
         self.client._refresh()  # refresh to update book and page ids
-        self._create_remote_missing_pages()
+        self.page_collector.create_remote_missing_pages()
 
     def sync_local(self):
         """Sync any remote changes to local store"""
-        self._create_local_missing_shelves()
-        self._create_local_missing_books()
-        self._create_local_missing_pages()
-
-    def _retrieve_from_client_map(self, obj: Page | Shelf | Book):
-        """Retrieve the client version of the local object"""
-        if isinstance(obj, Page):
-            name = os.path.splitext(obj.name)[0]
-            book = None
-            if obj.book:
-                book = obj.book.name
-
-            return (
-                self.client.page_map[con_hash(name + book)]
-                if book
-                else self.client.page_map[con_hash(name)]
-            )
-
-        if isinstance(obj, Book):
-            return (
-                self.client.book_map[con_hash(obj.name + obj.shelf.name)]
-                if obj.shelf
-                else self.client.book_map[con_hash(obj.name)]
-            )
-
-        if isinstance(obj, Shelf):
-            return self.client.shelf_map[con_hash(obj.name)]
+        self.shelf_collector.create_local_missing_shelves()
+        self.book_collector.create_local_missing_books()
+        self.page_collector.create_local_missing_pages()
 
     def update_remote(self, remote: bool, local: bool):
         """Sync page contents to the remote"""
@@ -455,7 +412,7 @@ class Bookstack(Client):
 
             updated_at = datetime.utcfromtimestamp(file_stat.st_mtime)
 
-            client_page = self._retrieve_from_client_map(page)
+            client_page = self.client._retrieve_from_client_map(page)
 
             client_updated = datetime.strptime(
                 client_page.details["updated_at"], "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -468,132 +425,19 @@ class Bookstack(Client):
                     seconds=5  # TODO: Surely there's a better way to tell the difference without downloading content
                 ):
                     updated_pages.append(client_page)
-                    self._update_local_content(page, client_page)
+                    self.page_collector.update_local_content(page, client_page)
             elif local:
                 if updated_at < client_updated and (
                     client_updated - updated_at
                 ) > timedelta(seconds=5):
                     console.log(f"Updating local page: {page}")
                     updated_pages.append(page)
-                    content = self._download_content(client_page)
-                    content = self._remove_full_header(content)
+                    content = self.page_collector.update(client_page)
                     with open(page.path, "wb") as f:
                         f.write(content)
 
         if not updated_pages and self.verbose:
             console.log("No pages changed to update")
-
-    def _remove_full_header(self, content):
-        content = self._remove_header(content, "#")
-        content = self._remove_header(content, "\n\n", inc=True)
-        return content
-
-    def _remove_header(self, content, end, inc=False):  # oof
-        first_index = content.find(b"#")
-        end = f"{end}".encode()
-        second_index = content.find(end, first_index + 1)
-
-        if inc:
-            second_index += 2
-
-        if first_index != -1 and second_index != -1:
-            new_content = content[:first_index] + content[second_index:]
-            return new_content
-        else:
-            return content
-
-    def _update_local_content(self, page: Page, client_page: Page):
-        """Update the content of a page in the remote"""
-        client_book = self._retrieve_from_client_map(page.book)
-
-        content = None
-
-        with open(page.path, "r") as f:
-            content = "".join(f.readlines()[0:])  # remove header
-
-        if content:
-            if self.verbose:
-                console.log(f"Updating remote page: {page}")
-
-            data = {
-                "book_id": client_book.details["id"],
-                "name": os.path.splitext(page.name)[0],
-                "markdown": content,
-            }
-
-            class PageLink(DetailedBookstackLink):
-                LINK = f"/api/pages/{client_page.details['id']}"
-
-            self.client._make_request(RequestType.PUT, PageLink.LINK, json=data)
-
-    def _update_shelf_books(self):
-        """Update's a shelf's books array"""
-        new_books = []
-        s = {}
-        map = self.client._get_temp_book_map()
-
-        for book in self.missing_books:
-            if book.shelf not in s:
-                s[book.shelf] = [book]
-            else:
-                s[book.shelf].append(book)
-
-        for shelf in s:
-            new_books = []
-            for book in s[shelf]:
-                new_books.append(map[book.name])
-
-            client_shelf = self._retrieve_from_client_map(shelf)
-
-            if client_shelf:
-                books = new_books
-                if client_shelf.details.get("books"):
-                    books = client_shelf.details["books"] + new_books
-
-                data = {
-                    "name": client_shelf.details["name"],
-                    "books": books,
-                }
-
-                self.client.headers["Content-Type"] = "application/json"
-
-                class ShelfUpdate(DetailedBookstackLink):
-                    LINK = f"/api/shelves/{client_shelf.details['id']}"
-
-                self.client._make_request(RequestType.PUT, ShelfUpdate.LINK, json=data)
-
-    def _create_remote_missing_shelves(self):
-        """Create any shelves in the remote which are missing"""
-        missing_shelves = self._get_missing_set(BookstackItems.SHELF, SyncType.REMOTE)
-        for shelf in missing_shelves:
-            if self.verbose:
-                console.log(f"Bookstack missing shelf: {shelf}")
-
-            encoded_data, content_type = urllib3.encode_multipart_formdata(
-                {"name": shelf.name}
-            )
-            self.client.headers["Content-Type"] = content_type
-            self.client._make_request(
-                RequestType.POST, BookstackAPIEndpoints.SHELVES, body=encoded_data
-            )
-
-    def _create_remote_missing_books(self):
-        """Create any books in the remote which are missing"""
-        missing_books = self._get_missing_set(BookstackItems.BOOK, SyncType.REMOTE)
-        for book in missing_books:
-            if self.verbose:
-                console.log(f"Bookstack missing book: {book}")
-
-            encoded_data, content_type = urllib3.encode_multipart_formdata(
-                {"name": book.name}
-            )
-            self.client.headers["Content-Type"] = content_type
-            self.client._make_request(
-                RequestType.POST, BookstackAPIEndpoints.BOOKS, body=encoded_data
-            )
-
-        if missing_books:
-            self.missing_books = missing_books  # save to update shelf location
 
     def _create_remote_missing_chapters(self):
         """Create any books in the remote which are missing"""
@@ -613,125 +457,6 @@ class Bookstack(Client):
         if missing_books:
             self.missing_books = missing_books  # save to update shelf location
 
-    def _create_remote_missing_pages(self):
-        """Create any pages in the remote which are missing"""
-        missing_pages = self._get_missing_set(BookstackItems.PAGE, SyncType.REMOTE)
-        for page in missing_pages:
-            if self.verbose:
-                console.log(f"Bookstack missing page: {page}")
-
-            client_book = self._retrieve_from_client_map(page.book)
-            book_id = client_book.details["id"]
-
-            content = ""
-
-            with open(page.path, "r") as f:
-                content = str(f.read())
-
-            data = {
-                "book_id": book_id,
-                "name": os.path.splitext(page.name)[0],
-                "markdown": content,
-            }
-
-            self.client.headers["Content-Type"] = "application/json"
-            self.client._make_request(
-                RequestType.POST, BookstackAPIEndpoints.PAGES, json=data
-            )
-
-    def _create_local_missing_pages(self):
-        """Create any missing pages in the local store, and write content to files which are missing."""
-        missing_pages = self._get_missing_set(BookstackItems.PAGE, SyncType.LOCAL)
-        for page in missing_pages:
-            content = self._download_content(page)
-            path = os.path.join(
-                self.path,
-                page.book.shelf.name,
-                page.book.name,
-                page.name + ".md",
-            )
-            if content is not None:
-                if self.verbose:
-                    console.log(f"Creating a page at: {path}")
-
-                with open(path, "wb") as f:
-                    content = self._remove_header(content, "\n\n", inc=True)
-                    f.write(content)
-
-    def _create_local_missing_books(self):
-        """Create any missing books in the local store"""
-        missing_books = self._get_missing_set(BookstackItems.BOOK, SyncType.LOCAL)
-        for book in missing_books:
-            path = os.path.join(self.path, book.shelf.name, book.name)
-            os.mkdir(path)
-
-            if self.verbose:
-                console.log(f"Creating a book at: {path}")
-
-    def _create_local_missing_shelves(self):
-        """Create any missing shelves in the local store"""
-        missing_shelves = self._get_missing_set(BookstackItems.SHELF, SyncType.LOCAL)
-        for shelf in missing_shelves:
-            path = os.path.join(self.path, shelf.name)
-            os.mkdir(path)
-
-            if self.verbose:
-                console.log(f"Creating a shelf at: {path}")
-
-    def _download_content(self, page):
-        """Download content from item in remote instance"""
-
-        class PageMarkdownLink(DetailedBookstackLink):
-            LINK = f"/api/pages/{page.details['id']}/export/markdown"
-
-        content = self.client._make_request(RequestType.GET, PageMarkdownLink.LINK)
-        return content.data
-
-    def _get_missing_set(self, item: BookstackItems, sync_type: SyncType):
-        """Returns a missing set of items, can either compare to local or remote. Returns list of missing items."""
-        attr = BOOKSTACK_ATTR_MAP[item]
-
-        items = getattr(self, attr)
-        client_items = getattr(self.client, attr)
-
-        item_names = set(os.path.splitext(item.name)[0] for item in items)
-        client_item_names = set(item.name for item in client_items)
-
-        if sync_type == SyncType.LOCAL:
-            missing = client_item_names - item_names
-            missing_items = [ci for ci in client_items if ci.name in missing]
-        else:
-            missing = item_names - client_item_names
-            missing_items = [
-                ci for ci in items if os.path.splitext(ci.name)[0] in missing
-            ]
-
-        return missing_items
-
-    def _set_shelves(self):
-        """Assert shelves are folders in DIR"""
-        shelves = []
-        for shelf in os.listdir(self.path):
-            if os.path.isdir(os.path.join(self.path, shelf)) and shelf != ".obsidian":
-                if not shelf.startswith(".") and shelf not in self.excluded:
-                    s = Shelf(
-                        path=os.path.join(self.path, shelf),
-                        name=shelf,
-                        client=self.client,
-                        from_client=False,
-                    )
-                    shelves.append(s)
-
-        return shelves
-
-    def _set_books(self):
-        books = []
-        for shelf in self.shelves:
-            for book in shelf.books:
-                books.append(book)
-
-        return books
-
     def _set_chapters(self):
         chapters = []
         for book in self.books:
@@ -739,15 +464,3 @@ class Bookstack(Client):
                 chapters.append(chapter)
 
         return chapters
-
-    def _set_pages(self):
-        pages = []
-        for book in self.books:
-            for chapter in book.chapters:
-                for page in chapter.pages:
-                    pages.append(page)
-
-            for page in book.pages:
-                pages.append(page)
-
-        return pages
