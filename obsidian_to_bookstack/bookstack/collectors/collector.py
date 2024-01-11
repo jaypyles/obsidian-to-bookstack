@@ -1,6 +1,5 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Type
 
 from ..client import RemoteClient
 from ..constants import *
@@ -46,4 +45,6 @@ class LocalCollector(BaseCollector):
 
 
 class RemoteCollector(BaseCollector):
-    ...
+    def __init__(self, verbose: bool, client: RemoteClient) -> None:
+        super().__init__(verbose)
+        self.client = client

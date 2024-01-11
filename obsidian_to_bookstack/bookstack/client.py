@@ -1,3 +1,4 @@
+import json
 import os
 from abc import ABC, abstractmethod
 
@@ -36,6 +37,14 @@ class RemoteClient(Client):
             request_type.value, request_url, headers=self.headers, body=body, json=json
         )
         return resp
+
+    def _get_from_client(self, endpoint: BookstackAPIEndpoints):
+        """Make a GET request to a Bookstack API Endpoint"""
+        resp = self._make_request(RequestType.GET, endpoint)
+        assert resp
+
+        data = json.loads(resp.data.decode())
+        return data["data"]
 
 
 class LocalClient(Client):
