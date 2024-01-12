@@ -4,10 +4,16 @@ Download remote files from Bookstack instance, that you may not have, along with
 
 # 🆕 What's New
 
-- Logging (with verbosity option)
+- All commands will now also be available to use with chapters. This means that
+  a structure like this is now allowed:
 
-Ex: running obsidian_to_bookstack commands will now show progress and running with `-v` and `--verbose` will show more detail.
-`obsidian_to_bookstack -v sync`
+```
+- Shelf/
+-- Book/
+--- Chapter/
+---- Note.md
+--- Note.md
+```
 
 # Installing
 
