@@ -89,4 +89,4 @@ The command would be called as `obsidian_to_bookstack delete Shelf/Book/Page --p
 
 ## In Progress
 
-- Chapter support
+- Statistical/table view of uploaded, downloaded, deleted, or updated objects
