@@ -50,10 +50,10 @@ The structure of the Obsidian Vault is pretty specific as it mirrors the Booksta
 ```
 - Shelves
   - Books
+    - Chapter
+      - Pages.md
     - Pages.md
 ```
-
-I may in the future add extra support for pages with no books, along with more nested structure. Bookstack does currently support "chapters" in Books, but this does not support that currently.
 
 ## Commands
 
