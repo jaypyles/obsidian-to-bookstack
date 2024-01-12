@@ -58,12 +58,6 @@ def local(ctx):
     with console.status("Downloading any missing files..."):
         b.sync_local()
 
-        for chapter in b.chapters:
-            print(f"Chapter: {chapter}")
-
-        for page in b.pages:
-            print(f"Page: {page}")
-
 
 @cli.command(help="Update files in Bookstack or Obsidian")
 @click.pass_context
@@ -98,12 +92,13 @@ def update(ctx, remote, local):
 @click.argument("path", required=True)
 @click.option("--shelf", is_flag=True, help="Delete a shelf")
 @click.option("--book", is_flag=True, help="Delete a book")
+@click.option("--chapter", is_flag=True, help="Delete a chapter")
 @click.option("--page", is_flag=True, help="Delete a page")
-def delete(ctx, path, shelf, book, page):
+def delete(ctx, path, shelf, book, chapter, page):
     b = ctx.obj.get("bookstack")
-    if not any([shelf, book, page]):
+    if not any([shelf, book, chapter, page]):
         raise click.UsageError(
-            "Please provide at least one of --shelf, --book, or --page"
+            "Please provide at least one of --shelf, --book, --chapter, or --page"
         )
 
     if shelf:
@@ -112,6 +107,9 @@ def delete(ctx, path, shelf, book, page):
     elif book:
         with console.status(f"Deleting book at {path}"):
             b.delete(BookstackItems.BOOK, path)
+    elif chapter:
+        with console.status(f"Deleting chapter at {path}"):
+            b.delete(BookstackItems.CHAPTER, path)
     elif page:
         with console.status(f"Deleting page at {path}"):
             b.delete(BookstackItems.PAGE, path)

@@ -16,6 +16,7 @@ class BookstackItems(Enum):
     PAGE = "page"
     BOOK = "book"
     SHELF = "shelf"
+    CHAPTER = "chapter"
 
 
 class RequestType(Enum):
@@ -34,6 +35,7 @@ BOOKSTACK_ATTR_MAP = {
     BookstackItems.SHELF: "shelves",
     BookstackItems.BOOK: "books",
     BookstackItems.PAGE: "pages",
+    BookstackItems.CHAPTER: "chapters",
 }
 
 __all__ = [

@@ -43,7 +43,6 @@ class RemoteChapterCollector(RemoteCollector):
         }
 
         for book in books:
-            print(f"Book Details: {book.details}")
             if book.details.get("contents"):
                 for item in book.details["contents"]:
                     if item["type"] == "chapter":
@@ -53,11 +52,20 @@ class RemoteChapterCollector(RemoteCollector):
                             book.chapters.append(c)
 
                             if item.get("pages"):
-                                self.client.pages.extend(
-                                    self.client.page_collector.get_pages(
-                                        self.client.books, client_pages=item["pages"]
-                                    )
-                                )
+                                client_pages = self.client.pages
+
+                                TEMP_CLIENT_MAP = {
+                                    page.details["id"]: page for page in client_pages
+                                }
+
+                                pages = []
+
+                                for page in item["pages"]:
+                                    if page := TEMP_CLIENT_MAP.get(page["id"]):
+                                        page.chapter = c
+                                        pages.append(page)
+
+                                c.pages = pages
 
                         if self.verbose:
                             console.log(f"Found chapter page: {c}")

@@ -44,6 +44,7 @@ class BookstackClient(RemoteClient):
         self.shelf_map = self._build_shelf_map()
         self.book_map = self._build_book_map()
         self.page_map = self._build_page_map()
+        self.chapter_map = self._build_chapter_map()
 
     def _refresh(self):
         """Simply update the client"""
@@ -68,13 +69,28 @@ class BookstackClient(RemoteClient):
         return book_map
 
     def _build_page_map(self):
-        """Build a map of all client books"""
+        """Build a map of all client pages"""
         page_map = {}
         for page in self.pages:
-            if page.book:
+            if page.chapter and page.book:
+                page_map[
+                    con_hash(page.name + page.book.name + page.chapter.name)
+                ] = page
+
+            elif page.book:
                 page_map[con_hash(page.name + page.book.name)] = page
+
             else:
                 page_map[con_hash(page.name)] = page
+
+        return page_map
+
+    def _build_chapter_map(self):
+        """Build a map of all client chapters"""
+        page_map = {}
+        for chapter in self.chapters:
+            if chapter.book:
+                page_map[con_hash(chapter.name + chapter.book.name)] = chapter
 
         return page_map
 
@@ -83,17 +99,17 @@ class BookstackClient(RemoteClient):
         books = self._get_from_client(BookstackAPIEndpoints.BOOKS)
         return {book["name"]: book["id"] for book in books}
 
-    def _retrieve_from_client_map(self, obj: Page | Shelf | Book):
+    def _retrieve_from_client_map(self, obj: Page | Shelf | Book | Chapter):
         """Retrieve the client version of the local object"""
         if isinstance(obj, Page):
             name = os.path.splitext(obj.name)[0]
-            book = None
-            if obj.book:
-                book = obj.book.name
+
+            if obj.chapter and obj.book:
+                return self.page_map[con_hash(name + obj.book.name + obj.chapter.name)]
 
             return (
-                self.page_map[con_hash(name + book)]
-                if book
+                self.page_map[con_hash(name + obj.book.name)]
+                if obj.book
                 else self.page_map[con_hash(name)]
             )
 
@@ -106,6 +122,9 @@ class BookstackClient(RemoteClient):
 
         if isinstance(obj, Shelf):
             return self.shelf_map[con_hash(obj.name)]
+
+        if isinstance(obj, Chapter):
+            return self.chapter_map[con_hash(obj.name + obj.book.name)]
 
 
 class Bookstack(LocalClient):
@@ -125,16 +144,16 @@ class Bookstack(LocalClient):
 
     def __set_collectors(self):
         self.shelf_collector = LocalShelfCollector(
-            self.client, self.path, self.excluded, self.verbose
+            self, self.client, self.path, self.excluded, self.verbose
         )
         self.book_collector = LocalBookCollector(
-            self.client, self.path, self.excluded, self.verbose
+            self, self.client, self.path, self.excluded, self.verbose
         )
         self.page_collector = LocalPageCollector(
-            self.client, self.path, self.excluded, self.verbose
+            self, self.client, self.path, self.excluded, self.verbose
         )
         self.chapter_collector = LocalChapterCollector(
-            self.client, self.path, self.excluded, self.verbose
+            self, self.client, self.path, self.excluded, self.verbose
         )
 
     def __set_artifacts(self):
@@ -226,6 +245,30 @@ class Bookstack(LocalClient):
 
             self._delete_from_bookstack(PageLink.LINK)
 
+        if arg == BookstackItems.CHAPTER:
+            assert len_item_sections == 3
+            path = os.path.join(
+                self.path, item_sections[0], item_sections[1], item_sections[2]
+            )
+            if self.verbose:
+                console.log(f"Deleting path at: {path}")
+
+            shutil.rmtree(path)
+
+            shelf = Shelf(item_sections[0])
+            book = Book(item_sections[1], shelf=shelf)
+            chapter = Chapter(item_sections[2], book=book)
+
+            client_chapter = self.client._retrieve_from_client_map(chapter)
+
+            class ChapterLink(DetailedBookstackLink):
+                LINK = f"/api/books/{client_chapter.details['id']}"
+
+            if self.verbose:
+                console.log(f"Deleting chapter in Bookstack: {client_chapter}")
+
+            self._delete_from_bookstack(ChapterLink.LINK)
+
     def _delete_from_bookstack(self, link: DetailedBookstackLink):
         """Make a DELETE request to a Bookstack API link"""
         resp = self.client._make_request(RequestType.DELETE, link)
@@ -239,12 +282,14 @@ class Bookstack(LocalClient):
         self._refresh()
         self.book_collector.update_shelf_books(self.missing_books)
         self.client._refresh()  # refresh to update book and page ids
+        self.chapter_collector.create_remote_missing_chapters()
         self.page_collector.create_remote_missing_pages()
 
     def sync_local(self):
         """Sync any remote changes to local store"""
         self.shelf_collector.create_local_missing_shelves()
         self.book_collector.create_local_missing_books()
+        self.chapter_collector.create_local_missing_chapters()
         self.page_collector.create_local_missing_pages()
 
     def update_remote(self, remote: bool, local: bool):

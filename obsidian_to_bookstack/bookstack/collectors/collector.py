@@ -1,6 +1,7 @@
 import os
 from abc import ABC, abstractmethod
 
+from ...console import console
 from ..client import RemoteClient
 from ..constants import *
 
@@ -15,9 +16,10 @@ class BaseCollector(ABC):
 class LocalCollector(BaseCollector):
     @abstractmethod
     def __init__(
-        self, client: RemoteClient, path: str, excluded: list, verbose: bool
+        self, local, client: RemoteClient, path: str, excluded: list, verbose: bool
     ) -> None:
         super().__init__(verbose)
+        self.local = local
         self.client = client
         self.path = path
         self.excluded = excluded
@@ -26,7 +28,7 @@ class LocalCollector(BaseCollector):
         """Returns a missing set of items, can either compare to local or remote. Returns list of missing items."""
         attr = BOOKSTACK_ATTR_MAP[item]
 
-        items = getattr(self, attr)
+        items = getattr(self.local, attr)
         client_items = getattr(self.client, attr)
 
         item_names = set(os.path.splitext(item.name)[0] for item in items)

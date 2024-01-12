@@ -14,9 +14,9 @@ class LocalShelfCollector(LocalCollector):
     """Performs operations with Shelves pertaining to the local Obsidian Vault"""
 
     def __init__(
-        self, client: RemoteClient, path: str, excluded: list, verbose: bool
+        self, local, client: RemoteClient, path: str, excluded: list, verbose: bool
     ) -> None:
-        super().__init__(client, path, excluded, verbose)
+        super().__init__(local, client, path, excluded, verbose)
 
     def set_shelves(self) -> List[Shelf]:
         """Set shelves from Obsidian Vault local directory"""

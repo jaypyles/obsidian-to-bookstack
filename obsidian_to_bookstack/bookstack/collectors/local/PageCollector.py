@@ -12,9 +12,9 @@ class LocalPageCollector(LocalCollector):
     """Performs operations with Pages pertaining to the local Obsidian Vault"""
 
     def __init__(
-        self, client: RemoteClient, path: str, excluded: list, verbose: bool
+        self, local, client: RemoteClient, path: str, excluded: list, verbose: bool
     ) -> None:
-        super().__init__(client, path, excluded, verbose)
+        super().__init__(local, client, path, excluded, verbose)
 
     def set_pages(self, books: List[Book]):
         """Set pages from Obsidian Vault local directory"""
@@ -62,12 +62,15 @@ class LocalPageCollector(LocalCollector):
         missing_pages = self._get_missing_set(BookstackItems.PAGE, SyncType.LOCAL)
         for page in missing_pages:
             content = self.__download_content(page)
-            path = os.path.join(
-                self.path,
-                page.book.shelf.name,
-                page.book.name,
-                page.name + ".md",
-            )
+            path_components = [self.path, page.book.shelf.name, page.book.name]
+
+            if page.chapter:
+                path_components.append(page.chapter.name)
+
+            path_components.append(page.name + ".md")
+
+            path = os.path.join(*path_components)
+
             if content is not None:
                 if self.verbose:
                     console.log(f"Creating a page at: {path}")
@@ -84,6 +87,12 @@ class LocalPageCollector(LocalCollector):
                 console.log(f"Bookstack missing page: {page}")
 
             client_book = self.client._retrieve_from_client_map(page.book)
+
+            client_chapter = None
+
+            if page.chapter:
+                client_chapter = self.client._retrieve_from_client_map(page.chapter)
+
             book_id = client_book.details["id"]
 
             content = ""
@@ -97,6 +106,9 @@ class LocalPageCollector(LocalCollector):
                 "markdown": content,
             }
 
+            if client_chapter:
+                data["chapter_id"] = client_chapter.details["id"]
+
             self.client.headers["Content-Type"] = "application/json"
             self.client._make_request(
                 RequestType.POST, BookstackAPIEndpoints.PAGES, json=data
@@ -107,6 +119,7 @@ class LocalPageCollector(LocalCollector):
         assert page.book
 
         client_book = self.client._retrieve_from_client_map(page.book)
+        client_chapter = self.client._retrieve_from_client_map(page.chapter)
 
         content = None
 
@@ -122,6 +135,9 @@ class LocalPageCollector(LocalCollector):
                 "name": os.path.splitext(page.name)[0],
                 "markdown": content,
             }
+
+            if client_chapter:
+                data["chapter_id"] = client_chapter.details["id"]
 
             class PageLink(DetailedBookstackLink):
                 LINK = f"/api/pages/{client_page.details['id']}"
