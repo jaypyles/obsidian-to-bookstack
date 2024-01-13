@@ -19,3 +19,6 @@ license = {text = "MIT"}
 
 [project.scripts]
 obsidian_to_bookstack="obsidian_to_bookstack.__main__:main"
+
+[tool.setuptools]
+packages = ["obsidian_to_bookstack"]

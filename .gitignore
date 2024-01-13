@@ -161,3 +161,4 @@ cython_debug/
 .pdm-python
 conf.toml
 Makefile
+data/settings.db

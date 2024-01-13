@@ -1,31 +1,31 @@
-import os
-
 import click
-from dotenv import load_dotenv
 
 from .bookstack.bookstack import Bookstack, BookstackItems
-from .config import load_toml
+from .config import load_env, load_toml
 from .console import console
-
-if os.path.exists(".env"):
-    load_dotenv()
-
-toml = load_toml()
-assert toml is not None
-
-path = toml["wiki"]["path"]
-excluded = toml["wiki"]["excluded"]["shelves"]
-
-console.log(f"Looking at Obsidian Vault at: [bold blue]{path}[/bold blue]")
-
-if excluded:
-    console.log(f"Excluding shelves: [bold blue]{excluded}[/bold blue]")
+from .sqllite import DatabaseFunctions as dbf
 
 
 @click.group()
 @click.option("-v", "--verbose", is_flag=True, help="Show verbose logs")
+@click.option("-c", "--config", required=False, help="Specify config file to load from")
+@click.option("-e", "--env", required=False, help="Specify env file to load from")
 @click.pass_context
-def cli(ctx, verbose):
+def cli(ctx, verbose, config="", env=""):
+    dbf.init_db()
+    load_env(env)
+    toml = load_toml(config)
+
+    assert toml is not None
+
+    path = toml["wiki"]["path"]
+    excluded = toml["wiki"]["excluded"]["shelves"]
+
+    console.log(f"Looking at Obsidian Vault at: [bold blue]{path}[/bold blue]")
+
+    if excluded:
+        console.log(f"Excluding shelves: [bold blue]{excluded}[/bold blue]")
+
     with console.status("Building client..."):
         b = Bookstack(path, excluded, verbose=verbose)
         ctx.obj = {"bookstack": b}
