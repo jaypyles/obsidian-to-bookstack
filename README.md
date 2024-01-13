@@ -1,6 +1,7 @@
 # Summary
 
 Download remote files from Bookstack instance, that you may not have, along with sending any changes to the remote.
+After configuration, consider installing the companion plugin at https://github.com/jaypyles/ObsidianToBookstackPlugin.
 
 # 🆕 What's New
 
