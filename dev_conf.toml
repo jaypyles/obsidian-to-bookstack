@@ -1,0 +1,5 @@
+[wiki]
+path = "/home/jayden/projects/homelab/dev_bookstack_notes"
+
+[wiki.excluded]
+shelves = ["private"]
