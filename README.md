@@ -34,21 +34,6 @@ or you may choose to use whatever secret manager you want, like Doppler, so long
 
 Make sure to setup a conf.toml in ~/.config/obsidian_to_bookstack, example:
 
-## Configuring CLI Options
-
-The CLI tool provides various options for configuration using the `click` library in Python. Here's a breakdown of the available options:
-
-- **Verbose Mode**
-
-  - `-v`, `--verbose`: This optional flag enables verbose logs, providing more detailed information during command execution.
-
-- **Config File**
-
-  - `-c`, `--config`: Specify the path to a configuration file (`config`). If provided, the CLI will load settings from this file. If not specified, default settings will be used.
-
-- **Environment File**
-  - `-e`, `--env`: Specify the path to an environment file (`env`) containing variables, such as API tokens or other sensitive information. This allows for easy management of environment-specific configurations.
-
 ```toml
 [wiki]
 path = "/home/user/notes/"
@@ -58,6 +43,21 @@ shelves = ["private"]
 ```
 
 Any shelves in `wiki.excluded.shelves` will not be uploaded to Bookstack.
+
+## Configuring CLI Options
+
+- **Verbose Mode**
+
+  - `-v`, `--verbose`: This optional flag enables verbose logs, providing more detailed information during command execution.
+
+- **Config File**
+
+  - `-c`, `--config`: Specify the path to a configuration file (`*.toml`). If provided, the CLI will load settings from this file. If not specified, default settings will be used.
+
+- **Environment File**
+  - `-e`, `--env`: Specify the path to an environment file (`.env`).
+
+Running commands after specifying config paths will continue with the last used path.
 
 ## Structure
 
@@ -102,6 +102,9 @@ Must be called in a path like structure. Ex:
 ```
 
 The command would be called as `obsidian_to_bookstack delete Shelf/Book/Page --page` to delete a page.
+
+Optional configuration commands must be ran as:
+`obsidian_to_bookstack --verbose --config ~/.config/.. --env ~/.config/... <command>`
 
 ## In Progress
 
