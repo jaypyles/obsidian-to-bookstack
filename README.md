@@ -35,6 +35,8 @@ By default, the tool will look for `.env` in the root of the project, but can be
 
 Configuration by default is located at `~/.config/obsidian_to_bookstack/conf.toml` but can also be set anywhere using the `--config` flag.
 
+The format of the configuration file is as follows:
+
 ```toml
 [wiki]
 path = "/home/user/notes/"
