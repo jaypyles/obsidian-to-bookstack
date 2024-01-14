@@ -1,7 +1,7 @@
 
 [project]
 name = "obsidian_to_bookstack"
-version = "0.4.1"
+version = "0.4.2"
 description = "Download and upload changes between an Obsidian Vault and a Bookstack instance."
 authors = [
     {name = "Jayden Pyles", email = "jpylesbusiness@gmail.com"},
