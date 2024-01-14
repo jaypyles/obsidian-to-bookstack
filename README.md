@@ -22,7 +22,7 @@ Run with `pipx install .` inside the project to install to your machine.
 
 # Config
 
-You can use a `.env` file in the root of your project for the following secrets:
+You can use a `.env` file for the following secrets:
 
 `BOOKSTACK_BASE_URL="https://demo.bookstack.com"`
 
@@ -31,8 +31,9 @@ You can use a `.env` file in the root of your project for the following secrets:
 `BOOKSTACK_TOKEN_SECRET=<your_bookstack_api_token_secret>`
 
 or you may choose to use whatever secret manager you want, like Doppler, so long as it sets those environment variables.
+By default, the tool will look for `.env` in the root of the project, but can be set anywhere using the `--env` flag.
 
-Make sure to setup a conf.toml in ~/.config/obsidian_to_bookstack, example:
+Configuration by default is located at `~/.config/obsidian_to_bookstack/conf.toml` but can also be set anywhere using the `--config` flag.
 
 ```toml
 [wiki]
@@ -98,12 +99,15 @@ Must be called in a path like structure. Ex:
 ```bash
 - Shelf
   - Book
+    - Chapter
+      - Page.md
     - Page.md
 ```
 
 The command would be called as `obsidian_to_bookstack delete Shelf/Book/Page --page` to delete a page.
 
 Optional configuration commands must be ran as:
+
 `obsidian_to_bookstack --verbose --config ~/.config/.. --env ~/.config/... <command>`
 
 ## In Progress
