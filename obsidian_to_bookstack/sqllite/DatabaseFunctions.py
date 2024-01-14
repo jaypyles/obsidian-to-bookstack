@@ -1,3 +1,4 @@
+import os
 import sqlite3
 
 
@@ -7,7 +8,13 @@ def connect():
     return conn, cursor
 
 
+def make_data_folder():
+    if not os.path.exists("data"):
+        os.mkdir("data")
+
+
 def create_settings_if_not_exists():
+    make_data_folder()
     conn, cursor = connect()
     cursor.execute(
         f"""
