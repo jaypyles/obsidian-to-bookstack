@@ -35,7 +35,7 @@ def load_toml(conf_path: str):
         else:
             USER = os.environ["USER"]
             path = f"/home/{USER}/.config/obsidian_to_bookstack"
-            conf_path = os.path.join(path, "dev_conf.toml")
+            conf_path = os.path.join(path, "conf.toml")
             dbf.update_config(conf_path)
 
     try:
