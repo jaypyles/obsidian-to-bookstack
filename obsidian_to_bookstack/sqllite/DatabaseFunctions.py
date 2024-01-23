@@ -1,7 +1,7 @@
 import os
 import sqlite3
 
-DATA_PATH = f"/home/{os.environ.get("USER")}/.config/obsidian_to_bookstack/data"
+DATA_PATH = f"/home/{os.environ.get('USER')}/.config/obsidian_to_bookstack/data"
 
 def connect():
     conn = sqlite3.connect(f"{DATA_PATH}/settings.db")
